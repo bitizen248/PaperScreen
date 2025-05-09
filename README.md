@@ -198,4 +198,6 @@ For more information, see the `./hardware` directory.
 
 Schematic : [T5_E-Paper-S3-Pro](./hardware/T5%20E-paper%20S3%20Pro%20V1.0%2024-12-24.pdf)
 
-3D Files : [3D Files](./DXF/)
+[Board size](./DXF/H752-Board%20size.dxf)  
+
+[Shell size](./DXF/H752-Shell%20size.dwg)
