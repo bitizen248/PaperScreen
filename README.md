@@ -47,6 +47,10 @@ H752-01 new version :
 | E-link Power Driver |                          TPS65185 (0x68)                          |
 |      IO Extend      |                         PCA9535PW (0x20)                          |
 
+➡ **T5_E_Paper_S3_Pro Related projects**:
+
+- [ [FastEPD](https://github.com/Xinyuan-LilyGO/FastEPD) ] : Optimized library for driving parallel eink displays with the ESP32
+
 ## :two: Module 🎁
 
 Datasheets on the chip are available in [./hardware](./hardware/) directory.
