@@ -79,7 +79,7 @@ void btn_task(void *param)
                 disp_refresh_screen();
             }
             else{
-                Serial.printf("io_extend end\n");
+                // Serial.printf("io_extend end\n");
             }
         }
         delay(300);
@@ -109,7 +109,7 @@ void disp_full_refresh(void)
 {
     epd_hl_set_all_white(&hl);
     epd_poweron();
-    checkError(epd_hl_update_screen(&hl, MODE_GC16, epd_ambient_temperature()));
+    checkError(epd_hl_update_screen(&hl, MODE_GL16, epd_ambient_temperature()));
     epd_poweroff();
 }
 
@@ -135,7 +135,23 @@ void disp_full_clean(void)
 
 void dips_clean(void)
 {
-    disp_refresh_screen();
+    EpdRect rener_area = {
+        .x = 0,
+        .y = 0,
+        .width = epd_rotated_display_width(),
+        .height = epd_rotated_display_height(),
+    };
+
+    disp_full_clean();
+    epd_hl_set_all_white(&hl);
+    epd_poweron();
+    checkError(epd_hl_update_screen(&hl, MODE_GC16, epd_ambient_temperature()));
+    epd_poweroff();
+
+    epd_draw_rotated_image(rener_area, decodebuffer, epd_hl_get_framebuffer(&hl));
+    epd_poweron();
+    checkError(epd_hl_update_screen(&hl, MODE_GL16, epd_ambient_temperature()));
+    epd_poweroff();
 }
 
 void disp_refresh_screen(void)
@@ -148,11 +164,14 @@ void disp_refresh_screen(void)
     };
 
     disp_full_clean();
-    disp_full_refresh();
+    epd_hl_set_all_white(&hl);
+    epd_poweron();
+    checkError(epd_hl_update_screen(&hl, MODE_DU, epd_ambient_temperature()));
+    epd_poweroff();
 
     epd_draw_rotated_image(rener_area, decodebuffer, epd_hl_get_framebuffer(&hl));
     epd_poweron();
-    checkError(epd_hl_update_screen(&hl, MODE_GC16, epd_ambient_temperature()));
+    checkError(epd_hl_update_screen(&hl, MODE_GL16, epd_ambient_temperature()));
     epd_poweroff();
 }
 
@@ -207,7 +226,7 @@ static void disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *c
         // disp_full_refresh();
         epd_draw_rotated_image(rener_area, decodebuffer, epd_hl_get_framebuffer(&hl));
         epd_poweron();
-        checkError(epd_hl_update_screen(&hl, MODE_GC16, epd_ambient_temperature()));
+        checkError(epd_hl_update_screen(&hl, MODE_GL16, epd_ambient_temperature()));
         // checkError(epd_hl_update_area(&hl, MODE_DU, epd_ambient_temperature(), rener_area));
         epd_poweroff();
     } 
@@ -357,16 +376,14 @@ static bool screen_init(void)
     // The display bus settings for V7 may be conservative, you can manually
     // override the bus speed to tune for speed, i.e., if you set the PSRAM speed
     // to 120MHz.
-    // epd_set_lcd_pixel_clock_MHz(17);
+    epd_set_lcd_pixel_clock_MHz(17);
 
     heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
     heap_caps_print_heap_info(MALLOC_CAP_SPIRAM);
 
-    // epd_poweron();
-    // epd_clear();
-    // epd_poweroff();
-
-    disp_full_clean();
+    epd_poweron();
+    epd_clear();
+    epd_poweroff();
 
     int cursor_x = 250;
     int cursor_y = epd_rotated_display_height() / 2 - 250;

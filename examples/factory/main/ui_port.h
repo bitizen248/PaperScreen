@@ -2,8 +2,8 @@
 
 #include "lvgl.h"
 
-#define UI_REFRESH_MODE_FAST   0
-#define UI_REFRESH_MODE_NORMAL 1
+#define UI_REFRESH_MODE_NORMAL 0
+#define UI_REFRESH_MODE_FAST   1
 #define UI_REFRESH_MODE_NEAT   2
 
 void ui_nvs_set_defaulat_param(void);
@@ -33,9 +33,13 @@ bool ui_lora_recv(const char **str, int *rssi);
 void ui_lora_clean_recv_flag(void);
 
 float ui_lora_get_freq(void);
-float ui_lora_get_bandwidth(void);
-int16_t ui_lora_get_output_power(void);
+void ui_lora_set_freq(float freq);
+int ui_lora_get_bandwidth(void);
+void ui_lora_set_bandwidth(float bd);
+int ui_lora_get_power(void);
+void ui_lora_set_power(float po);
 uint8_t ui_lora_get_spread_factor(void);
+void ui_lora_param_set(void);
 
 // sd
 void ui_sd_read(void);

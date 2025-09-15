@@ -3,6 +3,7 @@
 #include <RadioLib.h>
 #include "utilities.h"
 #include "peripheral.h"
+#include "ui_port.h"
 
 TaskHandle_t lora_handle;
 
@@ -262,4 +263,25 @@ void lora_recv_suspend(void)
 void lora_recv_resume(void)
 {
     vTaskResume(lora_handle);
+}
+
+void lora_param_set(void)
+{
+    // set carrier frequency to 433.5 MHz
+    if (radio.setFrequency(ui_lora_get_freq()) == RADIOLIB_ERR_INVALID_FREQUENCY) {
+        Serial.println(F("Selected frequency is invalid for this module!"));
+        while (true);
+    }
+
+    // set bandwidth to 250 kHz
+    if (radio.setBandwidth(ui_lora_get_bandwidth()) == RADIOLIB_ERR_INVALID_BANDWIDTH) {
+        Serial.println(F("Selected bandwidth is invalid for this module!"));
+        while (true);
+    }
+
+    // set output power to 10 dBm (accepted range is -17 - 22 dBm)
+    if (radio.setOutputPower(ui_lora_get_power()) == RADIOLIB_ERR_INVALID_OUTPUT_POWER) {
+        Serial.println(F("Selected output power is invalid for this module!"));
+        while (true);
+    }
 }

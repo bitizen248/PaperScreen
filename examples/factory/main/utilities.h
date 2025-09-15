@@ -1,6 +1,6 @@
 #pragma once
 
-#define UI_T5_EPARPER_S3_PRO_VERSION    "v1.6-250308"  // Software version
+#define UI_T5_EPARPER_S3_PRO_VERSION    "v1.7-250915"  // Software version
 #define BOARD_T5_EPARPER_S3_PRO_VERSION "v1.0-241224"  // Hardware version
 
 // BOARD PIN DEFINE

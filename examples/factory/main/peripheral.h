@@ -28,6 +28,7 @@ void lora_set_recv_flag(void);
 void lora_sleep(void);
 void lora_recv_suspend(void);
 void lora_recv_resume(void);
+void lora_param_set(void);
 
 // gps u-blox m10q
 bool gps_init(void);

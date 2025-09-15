@@ -8,8 +8,13 @@
 #include "nvs_param.h"
 
 int ui_setting_backlight = 3;  // 0 - 3
-int epd_vcom_default = 1560;
+int epd_vcom_default = 1000;
 int refresh_mode = UI_REFRESH_MODE_NORMAL;
+
+static float lora_default_freq = 850.0;
+static int lora_default_band = 125;
+static int lora_default_power = 22;
+static int lora_default_spread = 10;
 
 //************************************[ Other fun ]******************************************
 
@@ -166,10 +171,15 @@ void ui_lora_clean_recv_flag(void)
     lora_set_recv_flag();
 }
 
-float ui_lora_get_freq(void)            { return LORA_FREQUENNCY; }
-float ui_lora_get_bandwidth(void)       { return LORA_BANDWIDTH; }
-int16_t ui_lora_get_output_power(void)  { return LORA_OUTPUT_POWER; }
-uint8_t ui_lora_get_spread_factor(void) { return LORA_SPREAD_FACTOR; }
+float ui_lora_get_freq(void) { return lora_default_freq; }
+void ui_lora_set_freq(float freq) { lora_default_freq = freq; }
+int ui_lora_get_bandwidth(void) { return lora_default_band; }
+void ui_lora_set_bandwidth(float bd) { lora_default_band = bd; }
+int ui_lora_get_power(void) { return lora_default_power; }
+void ui_lora_set_power(float po) { lora_default_power = po; }
+uint8_t ui_lora_get_spread_factor(void) { return lora_default_spread; }
+void ui_lora_param_set(void) { lora_param_set(); }
+
 //************************************[ screen 3 ]****************************************** sd_card
 void ui_sd_read(void)
 {

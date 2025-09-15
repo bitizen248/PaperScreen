@@ -338,8 +338,8 @@ static void menu_btn_event(lv_event_t *e)
     printf("code=%d\n", lv_event_get_code(e));
     if(e->code == LV_EVENT_CLICKED) {
 
-        // // ui_full_refresh();
-        // // ui_full_clean();
+        // ui_full_refresh();
+        // ui_full_clean();
         if(data < ARRAY_LEN(icon_buf))
         {
             printf("[%d] %s is clicked.\n", data, icon_buf[data].icon_str);
@@ -713,6 +713,10 @@ static void scr2_list_event(lv_event_t *e)
             {
                 scr_mgr_push(SCREEN2_2_ID, false);
             }
+            if(strcmp("-Lora Setting", str) == 0)
+            {
+                scr_mgr_push(SCREEN2_3_ID, false);
+            }
             printf("%s\n", str);
         }
     }
@@ -775,6 +779,7 @@ static void create2(lv_obj_t *parent)
 
     scr2_item_create("-Auto Test", scr2_list_event);
     scr2_item_create("-Manual Test", scr2_list_event);
+    scr2_item_create("-Lora Setting", scr2_list_event);
 
     // back
     scr_back_btn_create(parent, "Lora", scr2_btn_event_cb);
@@ -896,11 +901,11 @@ static void create2_1(lv_obj_t *parent)
     lv_obj_set_style_text_font(scr2_1_info, &Font_Mono_Bold_25, LV_PART_MAIN);
     lv_obj_set_style_text_align(scr2_1_info, LV_TEXT_ALIGN_LEFT, 0);
                                     // "Frequery:***MHz    Bandwidth:***KHz\n"
-    lv_label_set_text_fmt(scr2_1_info, "Freq: %.0fMHz    BD: %.0fKHz\n"
+    lv_label_set_text_fmt(scr2_1_info, "Freq: %.0fMHz    BD: %dKHz\n"
                                        "Power: %d       Spread: %d",
                                         ui_lora_get_freq(),
                                         ui_lora_get_bandwidth(),
-                                        ui_lora_get_output_power(),
+                                        ui_lora_get_power(),
                                         ui_lora_get_spread_factor());
     lv_obj_set_style_border_width(scr2_1_info, 0, LV_PART_MAIN);
     lv_obj_align(scr2_1_info, LV_ALIGN_TOP_MID, 0, 85);
@@ -1204,6 +1209,174 @@ static scr_lifecycle_t screen2_2 = {
     .entry = entry2_2,
     .exit  = exit2_2,
     .destroy = destroy2_2,
+};
+#endif
+// --------------------- screen 2.3 --------------------- Lora Setting
+#if 1
+
+#define RADIO_FREQUENCY_LIST "433MHz\n 850MHz\n 868MHz\n 915MHz\n 920MHz"
+#define RADIO_BANDWIDTH "125KHz\n 250KHz\n 500KHz"
+#define RADIO_TX_POWER "10dBm\n 22dBm"
+
+static float lora_freq_list[] = {433.0, 850.0, 868.0, 915.0, 920.0};
+static int lora_band_list[] = {125, 250, 500};
+static int lora_power_list[] = {10, 22};
+
+static lv_obj_t *scr2_3_cont;
+static lv_obj_t *dropdown_freq;
+static lv_obj_t *dropdown_band;
+static lv_obj_t *dropdown_power;
+
+static void scr2_3_btn_event_cb(lv_event_t * e)
+{
+    if(e->code == LV_EVENT_CLICKED){
+        scr_mgr_pop(false);
+    }
+}
+
+static void lora_setting_event_handler(lv_event_t * e)
+{
+    char buf[32]={0};
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * obj = lv_event_get_target(e);
+    const char *flag = ( const char *)lv_event_get_user_data(e);
+    int select = lv_dropdown_get_selected(obj);
+
+    lv_dropdown_get_selected_str(obj, buf, sizeof(buf));
+    switch (*flag)
+    {
+    case 'f': 
+        for(int i = 0; i < ARRAY_LEN(lora_freq_list); i++) {
+            if(lora_freq_list[select] == lora_freq_list[i]) {
+                printf("set freq %.1fMHz\n", lora_freq_list[i]);
+                ui_lora_set_freq(lora_freq_list[i]);
+            }
+        }
+        break;
+    case 'b': 
+        for(int i = 0; i < ARRAY_LEN(lora_band_list); i++) {
+            if(lora_band_list[select] == lora_band_list[i]) {
+                printf("set bandwidth %dKhz\n", lora_band_list[i]);
+                ui_lora_set_bandwidth(lora_band_list[i]);
+            }
+        }
+        break;
+    case 'p': 
+        for(int i = 0; i < ARRAY_LEN(lora_power_list); i++) {
+            if(lora_power_list[select] == lora_power_list[i]) {
+                printf("set power %ddBm\n", lora_power_list[i]);
+                ui_lora_set_power(lora_power_list[i]);
+            }
+        }
+        break;
+    
+    default:
+        break;
+    }
+}
+
+static lv_obj_t * scr2_3_lora_setting_create(lv_obj_t *parent, const char *text)
+{
+    lv_obj_t *ui_Container1 = lv_obj_create(parent);
+    lv_obj_remove_style_all(ui_Container1);
+    lv_obj_set_height(ui_Container1, lv_pct(7));
+    lv_obj_set_width(ui_Container1, lv_pct(100));
+    lv_obj_set_x(ui_Container1, 35);
+    lv_obj_set_y(ui_Container1, -16);
+    lv_obj_set_align(ui_Container1, LV_ALIGN_CENTER);
+    lv_obj_set_flex_flow(ui_Container1, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_Container1, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    lv_obj_clear_flag(ui_Container1, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_obj_set_style_pad_row(ui_Container1, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(ui_Container1, 20, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // lv_obj_set_style_border_width(ui_Container1, 3, LV_PART_MAIN);
+
+    lv_obj_t *ui_Label14 = lv_label_create(ui_Container1);
+    lv_obj_set_width(ui_Label14, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label14, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label14, -60);
+    lv_obj_set_y(ui_Label14, -42);
+    lv_obj_set_align(ui_Label14, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label14, text);
+    lv_obj_set_style_text_font(ui_Label14, &Font_Mono_Bold_25, LV_PART_MAIN);   
+
+    lv_obj_t *ui_Dropdown1 = lv_dropdown_create(ui_Container1);
+    lv_obj_set_width(ui_Dropdown1, lv_pct(60));
+    lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Dropdown1, 19);
+    lv_obj_set_y(ui_Dropdown1, -1);
+    lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS);     /// Flags
+    // lv_obj_set_style_text_font(ui_Label14, &Font_Mono_Bold_25, LV_PART_ITEMS);  
+
+    // lv_obj_set_style_bg_opa(ui_Dropdown1, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(ui_Dropdown1, 1, LV_PART_MAIN | LV_STATE_PRESSED);
+    // lv_obj_set_style_shadow_width(ui_Dropdown1, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_PRESSED);
+
+    return ui_Dropdown1;
+}
+
+static void create2_3(lv_obj_t *parent) 
+{
+    scr2_3_cont = lv_obj_create(parent);
+    lv_obj_remove_style_all(scr2_3_cont);
+    lv_obj_set_width(scr2_3_cont, lv_pct(100));
+    lv_obj_set_height(scr2_3_cont, lv_pct(85));
+    lv_obj_set_align(scr2_3_cont, LV_ALIGN_CENTER);
+    lv_obj_set_flex_flow(scr2_3_cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr2_3_cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_clear_flag(scr2_3_cont, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_obj_set_style_pad_row(scr2_3_cont, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(scr2_3_cont, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // lv_obj_set_style_border_width(scr2_3_cont, 3, LV_PART_MAIN);
+    lv_obj_set_align(scr2_3_cont, LV_ALIGN_BOTTOM_MID);
+
+    dropdown_freq = scr2_3_lora_setting_create(scr2_3_cont, "Freq: ");
+    lv_dropdown_set_options(dropdown_freq, RADIO_FREQUENCY_LIST);
+    for(int i = 0; i < ARRAY_LEN(lora_freq_list); i++) {
+        if(ui_lora_get_freq() == lora_freq_list[i]) {
+            lv_dropdown_set_selected(dropdown_freq, i);
+        }
+    }
+
+    dropdown_band = scr2_3_lora_setting_create(scr2_3_cont, "Band: ");
+    lv_dropdown_set_options(dropdown_band, RADIO_BANDWIDTH);
+    for(int i = 0; i < ARRAY_LEN(lora_band_list); i++) {
+        if(ui_lora_get_bandwidth() == lora_band_list[i]) {
+            lv_dropdown_set_selected(dropdown_band, i);
+        }
+    }
+
+    dropdown_power = scr2_3_lora_setting_create(scr2_3_cont, "Power:");
+    lv_dropdown_set_options(dropdown_power, RADIO_TX_POWER);
+    for(int i = 0; i < ARRAY_LEN(lora_power_list); i++) {
+        if(ui_lora_get_power() == lora_power_list[i]) {
+            lv_dropdown_set_selected(dropdown_power, i);
+        }
+    }
+
+    static const char freq_flag = 'f';
+    static const char band_flag = 'b';
+    static const char power_flag = 'p';
+    lv_obj_add_event_cb(dropdown_freq, lora_setting_event_handler, LV_EVENT_VALUE_CHANGED, (void *)&freq_flag);
+    lv_obj_add_event_cb(dropdown_band, lora_setting_event_handler, LV_EVENT_VALUE_CHANGED, (void *)&band_flag);
+    lv_obj_add_event_cb(dropdown_power,   lora_setting_event_handler, LV_EVENT_VALUE_CHANGED, (void *)&power_flag);
+    // back
+    scr_back_btn_create(parent, ("Lora Setting"), scr2_3_btn_event_cb);
+}
+static void entry2_3(void) 
+{
+
+}
+static void exit2_3(void) {
+    ui_lora_param_set();
+}
+static void destroy2_3(void) { }
+
+static scr_lifecycle_t screen2_3 = {
+    .create = create2_3,
+    .entry = entry2_3,
+    .exit  = exit2_3,
+    .destroy = destroy2_3,
 };
 #endif
 //************************************[ screen 3 ]****************************************** sd_card
@@ -2645,6 +2818,7 @@ void ui_entry(void)
     scr_mgr_register(SCREEN2_ID,   &screen2);   // lora
     scr_mgr_register(SCREEN2_1_ID, &screen2_1); //  - Auto Send
     scr_mgr_register(SCREEN2_2_ID, &screen2_2); //  - Manual Send
+    scr_mgr_register(SCREEN2_3_ID, &screen2_3); //  - Lora Setting
     scr_mgr_register(SCREEN3_ID,   &screen3);   // sd card
     scr_mgr_register(SCREEN4_ID,   &screen4);   // setting
     scr_mgr_register(SCREEN4_1_ID, &screen4_1); //  - About System

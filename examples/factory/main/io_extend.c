@@ -45,17 +45,17 @@ void io_extend_lora_gps_power_on(bool en)
     uint8_t io_in1 = pca9555_read_inversion(BOARD_I2C_PORT, 1);
     uint8_t io_co1 = pca9555_read_config(BOARD_I2C_PORT, 1);
 
-    printf("io_extend_0 : 0x%x\n", io_val0);
-    printf("io_extend_1 : 0x%x\n", io_val1);
+    // printf("io_extend_0 : 0x%x\n", io_val0);
+    // printf("io_extend_1 : 0x%x\n", io_val1);
 
-    printf("io_wr0 : 0x%x\n", io_wr0);
-    printf("io_wr1 : 0x%x\n", io_wr1);
+    // printf("io_wr0 : 0x%x\n", io_wr0);
+    // printf("io_wr1 : 0x%x\n", io_wr1);
 
-    printf("io_in0 : 0x%x\n", io_in0);
-    printf("io_in1 : 0x%x\n", io_in1);
+    // printf("io_in0 : 0x%x\n", io_in0);
+    // printf("io_in1 : 0x%x\n", io_in1);
 
-    printf("io_co0 : 0x%x\n", io_co0);
-    printf("io_co1 : 0x%x\n", io_co1);
+    // printf("io_co0 : 0x%x\n", io_co0);
+    // printf("io_co1 : 0x%x\n", io_co1);
     // if(en) {
     //     value = io_val | PCA_PIN_P00;
     // } else {
@@ -68,7 +68,7 @@ bool button_read(void)
 {
     uint8_t io_val0 = pca9555_read_input(BOARD_I2C_PORT, 0);
     uint8_t io_val = pca9555_read_input(BOARD_I2C_PORT, 1);
-    printf("io_extend : 0x%x  %d\n", io_val, (io_val & (PCA_PIN_PC12 >> 8)));
+    // printf("io_extend : 0x%x  %d\n", io_val, (io_val & (PCA_PIN_PC12 >> 8)));
     return !(io_val & (PCA_PIN_PC12 >> 8));
 }
 
