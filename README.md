@@ -180,6 +180,48 @@ Datasheets on the chip are available in [./hardware](./hardware/) directory.
 #define BOARD_BL_EN         (11)
 #define BOARD_PCA9535_INT   (38)
 #define BOARD_BOOT_BTN      (0)
+
+// ED047TC1 --- e-ink paper
+#define EP_SCL             (40)
+#define EP_SDA             (39)
+#define EP_INTR            (38)
+#define EP_I2C_PORT      I2C_NUM_0
+
+#define EP_D7              (8)
+#define EP_D6              (18)
+#define EP_D5              (17)
+#define EP_D4              (16)
+#define EP_D3              (15)
+#define EP_D2              (7)
+#define EP_D1              (6)
+#define EP_D0              (5)
+#define EP_CKV             (48) /* Control Lines */
+#define EP_STH             (41)
+#define EP_LEH             (42)
+#define EP_STV             (45)
+#define EP_CKH             (4)   /* Edges */
+
+// PCA9535
+// Extend the interface and set the read/write ports via I2C.
+// IO1X
+#define PCA9535_IO10_EP_OE          // EP Output enable source driver
+#define PCA9535_IO11_EP_MODE        // EP Output mode selection gate driver
+#define PCA9535_IO12_BUTTON
+#define PCA9535_IO13_TPS_PWRUP
+#define PCA9535_IO14_VCOM_CTRL
+#define PCA9535_IO15_TPS_WAKEUP
+#define PCA9535_IO16_TPS_PWR_GOOD
+#define PCA9535_IO17_TPS_INT
+// IO0X
+#define PCA9535_IO00
+#define PCA9535_IO01
+#define PCA9535_IO02
+#define PCA9535_IO03
+#define PCA9535_IO04
+#define PCA9535_IO05
+#define PCA9535_IO06
+#define PCA9535_IO07
+
 ~~~
 
 ### Extension interface
