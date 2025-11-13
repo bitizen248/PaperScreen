@@ -25,7 +25,6 @@ ExtensionIOXL9555 io;
 TinyGPSPlus gps;
 uint8_t buffer[256];
 
-
 void setup(void)
 {
     SerialMon.begin(115200);
@@ -38,16 +37,14 @@ void setup(void)
             delay(1000);
         }
     }
-    
-    // Set PORT0 as input,mask = 0xFF = all pin input
-    io.configPort(ExtensionIOXL9555::PORT0, 0x00);
-    // Set PORT1 as input,mask = 0xFF = all pin input
-    io.configPort(ExtensionIOXL9555::PORT1, 0xFF);
+    // io.configPort(ExtensionIOXL9555::PORT0, 0x00); // Set PORT0 as output ,mask = 0x00 = all pin output
+    // io.configPort(ExtensionIOXL9555::PORT1, 0x00);  // Set PORT1 as output ,mask = 0x00 = all pin output
 
-    Serial.println("Power on LoRa and GPS!");
-    io.digitalWrite(ExtensionIOXL9555::IO0, HIGH);
-
-    Serial.println("This sketch only applies to boards carrying GPS shields, the default is T-Deck");
+    // LoRa and GPS share the power supply VCC3V3.
+    // The VCC3V3 power supply is controlled by LORA_EN.
+    // Raise the enable signal of IO00 of the expansion chip PCA9535 to LORA_EN
+    io.pinMode(ExtensionIOXL9555::IO0, OUTPUT);
+    io.digitalWrite(ExtensionIOXL9555::IO0, LOW); // Enable Lora & GPS power
 
     Serial.println("It does not support GPS function. Of course, you can use an external GPS module to connect to the Gover interface.");
 

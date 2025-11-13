@@ -52,16 +52,13 @@ void io_extend_lora_gps_power_on(bool en)
         }
     }
 
-    // Set PORT0 as input,mask = 0xFF = all pin input
-    io.configPort(ExtensionIOXL9555::PORT0, 0x00);
-    // Set PORT1 as input,mask = 0xFF = all pin input
-    io.configPort(ExtensionIOXL9555::PORT1, 0xFF);
+    // LoRa and GPS share the power supply VCC3V3.
+    // The VCC3V3 power supply is controlled by LORA_EN.
+    // Raise the enable signal of IO00 of the expansion chip PCA9535 to LORA_EN
+    io.pinMode(ExtensionIOXL9555::IO0, OUTPUT);
 
     Serial.println("Power on LoRa and GPS!");
-    if(en)
-        io.digitalWrite(ExtensionIOXL9555::IO0, HIGH);
-    else 
-        io.digitalWrite(ExtensionIOXL9555::IO0, LOW);
+    io.digitalWrite(ExtensionIOXL9555::IO0, en); // Enable Lora & GPS power
 
     delay(1500);
 }
@@ -78,7 +75,7 @@ void setup()
     Serial.begin(115200);
 
     // This must be turned on, otherwise LoRa and GPS will not work
-    io_extend_lora_gps_power_on(true);
+    io_extend_lora_gps_power_on(HIGH);
 
     SPI.begin(BOARD_SPI_SCLK, BOARD_SPI_MISO, BOARD_SPI_MOSI);
 
