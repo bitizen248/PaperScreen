@@ -38,7 +38,7 @@ H752-01 new version :
 |         MCU         |                         ESP32-S3-WROOM-1                          |
 |    Flash / PSRAM    |                             16M / 8M                              |
 |        Lora         |                              SX1262                               |
-|         GPS         |                             MIA-M10Q                              |
+|         GPS         |                         MIA-M10Q / L76K                           |
 |      Driver IC      |             ED047TC1 (4.7 inches, 960x540 , 16 gray)              |
 |  Battery Capacity   |                           3.7V-1500mAh                            |
 |    Battery Chip     |                  BQ25896 (0x6B), BQ27220 (0x55)                   |
