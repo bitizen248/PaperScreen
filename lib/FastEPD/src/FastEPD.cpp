@@ -26,14 +26,32 @@
 #include "arduino_io.inl"
 #include "FastEPD.inl"
 #include "bb_ep_gfx.inl"
+#include "esp_log.h"
+
+static char *TAG = "FastEPD";
 
 //#pragma GCC optimize("O2")
 // Display how much time each operation takes on the serial monitor
 #define SHOW_TIME
 
-int FASTEPD::getStringBox(const char *text, BBEPRECT *pRect)
+int FASTEPD::getStringBox(const char *text, BB_RECT *pRect)
 {
     return bbepGetStringBox(&_state, text, pRect);
+}
+#ifdef ARDUINO
+void FASTEPD::getStringBox(const String &str, BB_RECT *pRect)
+{
+    bbepGetStringBox(&_state, str.c_str(), pRect);
+}
+#endif
+void FASTEPD::setCursor(int x, int y)
+{
+    if (x >= 0) {
+        _state.iCursorX = x;
+    }
+    if (y >= 0) {
+        _state.iCursorY = y;
+    }
 }
 //
 // Copy the current pixels to the previous for partial updates after powerup
@@ -57,6 +75,16 @@ int FASTEPD::loadG5Image(const uint8_t *pG5, int x, int y, int iFG, int iBG, flo
 {
     return bbepLoadG5(&_state, pG5, x, y, iFG, iBG, fScale);
 }
+
+void FASTEPD::setPasses(uint8_t iPartialPasses, uint8_t iFullPasses)
+{
+    if (iPartialPasses > 0 && iPartialPasses < 15) { // reasonable numbers
+        _state.iPartialPasses = iPartialPasses;
+    }
+    if (iFullPasses > 0 && iFullPasses < 15) { // reasonable numbers
+        _state.iFullPasses = iFullPasses;
+    }
+} /* setPasses() */
 
 int FASTEPD::setRotation(int iAngle)
 {
@@ -90,9 +118,37 @@ void FASTEPD::fillRoundRect(int x, int y, int w, int h,
     bbepRoundRect(&_state, x, y, w, h, r, color, 1);
 }
 
+void FASTEPD::freeSprite(void)
+{
+    if (_state.pCurrent) {
+        free(_state.pCurrent);
+    }
+    memset(&_state, 0, sizeof(FASTEPD));
+} /* freeSprite() */
+
+int FASTEPD::initSprite(int iWidth, int iHeight)
+{
+int rc;
+    rc = bbepInitPanel(&_state, BB_PANEL_VIRTUAL, 0);
+    if (rc == BBEP_SUCCESS) {
+        rc = bbepSetPanelSize(&_state, iWidth, iHeight, 0, 0);
+    }
+    return rc;
+} /* initSprite() */
+
+int FASTEPD::drawSprite(FASTEPD *pSprite, int x, int y, int iTransparent)
+{
+    return bbepDrawSprite(&pSprite->_state, &_state, x, y, iTransparent);
+} /* drawSprite() */
+
 void FASTEPD::drawRect(int x, int y, int w, int h, uint8_t color)
 {
     bbepRectangle(&_state, x, y, x+w-1, y+h-1, color, 0);
+}
+
+void FASTEPD::invertRect(int x, int y, int w, int h)
+{
+    bbepInvertRect(&_state, x, y, w, h);
 }
 
 void FASTEPD::fillRect(int x, int y, int w, int h, uint8_t color)
@@ -110,6 +166,27 @@ int FASTEPD::setMode(int iMode)
     return bbepSetMode(&_state, iMode);
   /* setMode() */
 }
+void FASTEPD::ioPinMode(uint8_t u8Pin, uint8_t iMode)
+{
+    if (_state.pfnExtIO) {
+        (*_state.pfnExtIO)(BB_EXTIO_SET_MODE, u8Pin, iMode);
+    }
+}
+void FASTEPD::ioWrite(uint8_t u8Pin, uint8_t iValue)
+{
+    if (_state.pfnExtIO) {
+        (*_state.pfnExtIO)(BB_EXTIO_WRITE, u8Pin, iValue);
+    }
+}
+uint8_t FASTEPD::ioRead(uint8_t u8Pin)
+{
+    uint8_t val = 0;
+    if (_state.pfnExtIO) {
+        val = (*_state.pfnExtIO)(BB_EXTIO_READ, u8Pin, 0);
+    }
+    return val;
+}
+
 void FASTEPD::setFont(int iFont)
 {
     _state.iFont = iFont;
@@ -124,6 +201,11 @@ void FASTEPD::setFont(const void *pFont, bool bAntiAlias)
     if (_state.mode != BB_MODE_4BPP) bAntiAlias = false; // only works in grayscale mode
     _state.anti_alias = (uint8_t)bAntiAlias;
 } /* setFont() */
+
+void FASTEPD::setTextWrap(bool bWrap)
+{
+    bbepSetTextWrap(&_state, (int)bWrap); 
+} /* setTextWrap() */
 
 void FASTEPD::setTextColor(int iFG, int iBG)
 {
@@ -143,8 +225,36 @@ void FASTEPD::drawString(const char *pText, int x, int y)
 size_t FASTEPD::write(uint8_t c) {
 char szTemp[2]; // used to draw 1 character at a time to the C methods
 int w=8, h=8;
+static int iUnicodeCount = 0;
+static uint8_t u8Unicode0, u8Unicode1;
 
-  szTemp[0] = c; szTemp[1] = 0;
+   if (iUnicodeCount == 0) {
+       if (c >= 0x80) { // start of a multi-byte character
+           iUnicodeCount++;
+           u8Unicode0 = c;
+           return 1;
+       }
+   } else { // middle/end of a multi-byte character
+       uint16_t u16Code;
+       if (u8Unicode0 < 0xe0) { // 2 byte char, 0-0x7ff
+           u16Code = (u8Unicode0 & 0x3f) << 6;
+           u16Code += (c & 0x3f);
+           c = bbepUnicodeTo1252(u16Code);
+           iUnicodeCount = 0;
+       } else { // 3 byte character 0x800 and above
+           if (iUnicodeCount == 1) {
+               iUnicodeCount++; // save for next byte to arrive
+               u8Unicode1 = c;
+               return 1;
+           }
+           u16Code = (u8Unicode0 & 0x3f) << 12;
+           u16Code += (u8Unicode1 & 0x3f) << 6;
+           u16Code += (c & 0x3f);
+           c = bbepUnicodeTo1252(u16Code);
+           iUnicodeCount = 0;
+       }
+   }
+   szTemp[0] = c; szTemp[1] = 0;
    if (_state.pFont == NULL) { // use built-in fonts
       if (_state.iFont == FONT_8x8 || _state.iFont == FONT_6x8) {
         h = 8;
@@ -165,28 +275,57 @@ int w=8, h=8;
         bbepWriteString(&_state, -1, -1, szTemp, _state.iFont, _state.iFG);
     }
   } else { // Custom font
-      BB_FONT *pBBF = (BB_FONT *)_state.pFont;
+      BB_FONT *pBBF;
+      BB_FONT_SMALL *pBBFS;
+      BB_GLYPH *pGlyph;
+      BB_GLYPH_SMALL *pGlyphSmall;
+      int first, last;
+
+      if (*(uint16_t *)_state.pFont == BB_FONT_MARKER) {
+        pBBF = (BB_FONT *)_state.pFont; pBBFS = NULL;
+        first = pBBF->first;
+        last = pBBF->last;
+        pGlyph = &pBBF->glyphs[c - first]; pGlyphSmall = NULL;
+      } else {
+        pBBFS = (BB_FONT_SMALL *)_state.pFont; pBBF = NULL;
+        first = pBBFS->first;
+        last = pBBFS->last;
+        pGlyphSmall = &pBBFS->glyphs[c - first]; pGlyph = NULL;
+      }
     if (c == '\n') {
       _state.iCursorX = 0;
-      _state.iCursorY += pBBF->height;
+      _state.iCursorY += (pBBF) ? pBBF->height : pBBFS->height;
     } else if (c != '\r') {
-      if (c >= pBBF->first && c <= pBBF->last) {
-          BB_GLYPH *pBBG = &pBBF->glyphs[c - pBBF->first];
-        w = pBBG->width;
-        h = pBBG->height;
+      if (c >= first && c <= last) {
+        if (pBBF) {
+            w = pGlyph->width;
+            h = pGlyph->height;
+        } else {
+            w = pGlyphSmall->width;
+            h = pGlyphSmall->height;
+        }
         if (w > 0 && h > 0) { // Is there an associated bitmap?
-          w += pBBG->xOffset;
+          w += (pBBF) ? pGlyph->xOffset : pGlyphSmall->xOffset;
           if (_state.wrap && (_state.iCursorX + w) > _state.width) {
             _state.iCursorX = 0;
             _state.iCursorY += h;
           }
-          bbepWriteStringCustom(&_state, (BB_FONT *)_state.pFont, -1, -1, szTemp, _state.iFG);
+          bbepWriteStringCustom(&_state, _state.pFont, -1, -1, szTemp, _state.iFG);
         }
       }
     }
   }
   return 1;
 } /* write() */
+
+void FASTEPD::setBrightness(uint8_t led1, uint8_t led2)
+{
+    bbepSetBrightness(&_state, led1, led2);
+}
+void FASTEPD::initLights(uint8_t led1, uint8_t led2)
+{
+    bbepInitLights(&_state, led1, led2);
+} /* initLights() */
 
 int FASTEPD::initCustomPanel(BBPANELDEF *pPanel, BBPANELPROCS *pProcs)
 {
@@ -196,15 +335,22 @@ int FASTEPD::initCustomPanel(BBPANELDEF *pPanel, BBPANELPROCS *pProcs)
     _state.pfnIOInit = pProcs->pfnIOInit;
     _state.pfnRowControl = pProcs->pfnRowControl;
     return (*(_state.pfnIOInit))(&_state);
-} /* setPanelType() */
+} /* initCustomPanel() */
 
-int FASTEPD::setPanelSize(int width, int height, int flags) {
-    return bbepSetPanelSize(&_state, width, height, flags);
+int FASTEPD::setPanelSize(int iPanel)
+{
+    return bbepSetDefinedPanel(&_state, iPanel);
+}
+
+int FASTEPD::setPanelSize(int width, int height, int flags, int iVCOM) {
+    return bbepSetPanelSize(&_state, width, height, flags, iVCOM);
 } /* setPanelSize() */
 
-int FASTEPD::initPanel(int iPanel)
+int FASTEPD::initPanel(int iPanel, uint32_t u32Speed)
 {
-    return bbepInitPanel(&_state, iPanel);
+    return bbepInitPanel(&_state, iPanel, u32Speed);
+
+    ESP_LOGI(TAG, "initPanel\n");
 } /* initIO() */
 
 int FASTEPD::einkPower(int bOn)
@@ -243,12 +389,16 @@ void FASTEPD::fillScreen(uint8_t u8Color)
     bbepFillScreen(&_state, u8Color);
 } /* fillScreen() */
 
-int FASTEPD::fullUpdate(bool bFast, bool bKeepOn, BBEPRECT *pRect)
+int FASTEPD::fullUpdate(int iClearMode, bool bKeepOn, BB_RECT *pRect)
 {
-    return bbepFullUpdate(&_state, bFast, bKeepOn, pRect);
+    return bbepFullUpdate(&_state, iClearMode, bKeepOn, pRect);
 } /* fullUpdate() */
 
 int FASTEPD::partialUpdate(bool bKeepOn, int iStartLine, int iEndLine)
 {
     return bbepPartialUpdate(&_state, bKeepOn, iStartLine, iEndLine);
 } /* partialUpdate() */
+int FASTEPD::smoothUpdate(bool bKeepOn, uint8_t u8Color)
+{
+    return bbepSmoothUpdate(&_state, bKeepOn, u8Color);
+} /* smoothUpdate() */

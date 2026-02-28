@@ -34,6 +34,14 @@
 #define BB_NOT_USED 0xff
 #define BBEP_TRANSPARENT 255
 
+// 5 possible clearing options before an update
+enum {
+   CLEAR_NONE = 0, // don't clear
+   CLEAR_FAST, // 8 passes black/white
+   CLEAR_SLOW, // 10 passes black/white/black/white
+   CLEAR_WHITE, // 5 passes to white (may not be sufficient to clear old pixels)
+   CLEAR_BLACK, // 5 passes to black (not recommended unless you know what you're doing)
+};
 // 5 possible font sizes: 8x8, 16x32, 6x8, 12x16 (stretched from 6x8 with smoothing), 16x16 (stretched from 8x8) 
 enum {
    FONT_6x8 = 0,
@@ -59,9 +67,25 @@ enum {
     BB_PANEL_INKPLATE5V2,
     BB_PANEL_EPDIY_V7_16,
     BB_PANEL_V7_RAW,
+    BB_PANEL_V7_103,
+    BB_PANEL_LILYGO_T5PRO,
+    BB_PANEL_LILYGO_T5P4,
     BB_PANEL_CUSTOM,
+    BB_PANEL_VIRTUAL,
     BB_PANEL_COUNT
 };
+
+// Pre-configured displays
+enum {
+    BBEP_DISPLAY_EC060TC1,
+    BBEP_DISPLAY_EC060KD1,
+    BBEP_DISPLAY_ED0970TC1,
+    BBEP_DISPLAY_ED103TC2,
+    BBEP_DISPLAY_ED052TC4,
+    BBEP_DISPLAY_ED1150C1,
+    BBEP_DISPLAY_COUNT
+};
+
 // A complete description of an EPD panel
 typedef struct _paneldef {
     uint16_t width;
@@ -93,7 +117,15 @@ typedef struct bbepr {
     int y;
     int w;
     int h;
-} BBEPRECT;
+} BB_RECT;
+
+// To access external IO through a single function pointer
+// This enum defines the operation
+enum {
+    BB_EXTIO_SET_MODE=0,
+    BB_EXTIO_WRITE,
+    BB_EXTIO_READ
+};
 
 // Display clearing pass type
 enum {
@@ -138,14 +170,20 @@ typedef void (BB_SET_PIXEL_FAST)(void *pBBEP, int x, int y, unsigned char color)
 typedef int (BB_EINK_POWER)(void *pBBEP, int bOn);
 // Callback function for initializing all of the I/O devices
 typedef int (BB_IO_INIT)(void *pBBEP);
+// Callback function to shut down the extra I/O (e.g. extenders)
+typedef void (BB_IO_DEINIT)(void *pBBEP);
 // Callback function for controlling the row start/step
 typedef void (BB_ROW_CONTROL)(void *pBBEP, int iMode);
+// Callback function to access external IO expanders
+typedef uint8_t (BB_EXT_IO)(uint8_t iOP, uint8_t iPin, uint8_t iValue);
 
 typedef struct tag_bbeppanelprocs
 {
     BB_EINK_POWER *pfnEinkPower;
     BB_IO_INIT *pfnIOInit;
     BB_ROW_CONTROL *pfnRowControl;
+    BB_IO_DEINIT *pfnIODeInit;
+    BB_EXT_IO *pfnExtIO;
 } BBPANELPROCS;
 
 typedef struct tag_fastepdstate
@@ -153,12 +191,14 @@ typedef struct tag_fastepdstate
     int iPanelType;
     uint8_t wrap, last_error, pwr_on, mode;
     uint8_t shift_data, anti_alias;
+    uint8_t u8LED1, u8LED2;
     int iCursorX, iCursorY;
     int width, height, native_width, native_height;
     int rotation;
+    int iPartialPasses, iFullPasses;
     int iScreenOffset, iOrientation;
     int iFG, iBG; //current color
-    int iFont, iFlags;
+    int iFont, iFlags, iVCOM;
     void *pFont;
     uint8_t *dma_buf;
     uint8_t *pCurrent; // current pixels
@@ -168,7 +208,9 @@ typedef struct tag_fastepdstate
     BB_SET_PIXEL *pfnSetPixel;
     BB_SET_PIXEL_FAST *pfnSetPixelFast;
     BB_EINK_POWER *pfnEinkPower;
+    BB_EXT_IO *pfnExtIO;
     BB_IO_INIT *pfnIOInit;
+    BB_IO_DEINIT *pfnIODeInit;
     BB_ROW_CONTROL *pfnRowControl;
 } FASTEPDSTATE;
 
@@ -181,21 +223,37 @@ class FASTEPD
 {
   public:
     FASTEPD() {memset(&_state, 0, sizeof(_state)); _state.iFont = FONT_8x8; _state.iFG = BBEP_BLACK;}
-    int initPanel(int iPanelType);
+    int initPanel(int iPanelType, uint32_t u32Speed = 0);
+    void initLights(uint8_t led1, uint8_t led2 = 0xff);
+    void setBrightness(uint8_t led1, uint8_t led2 = 0);
     int initCustomPanel(BBPANELDEF *pPanel, BBPANELPROCS *pProcs);
+    int initSprite(int iWidth, int iHeight);
+    int drawSprite(FASTEPD *pSprite, int x, int y, int iTransparent = -1);
+    void freeSprite(void);
+    int setPanelSize(int iPanel);
     int setCustomMatrix(const uint8_t *pMatrix, size_t matrix_size);
-    int setPanelSize(int width, int height, int flags = BB_PANEL_FLAG_NONE);
-    int getStringBox(const char *text, BBEPRECT *pRect);
+    int setPanelSize(int width, int height, int flags = BB_PANEL_FLAG_NONE, int iVCOM = -1600);
+    int getStringBox(const char *text, BB_RECT *pRect);
+#ifdef ARDUINO
+    void getStringBox(const String &str, BB_RECT *pRect);
+#endif
     int setMode(int iMode); // set graphics mode
+    void ioPinMode(uint8_t u8Pin, uint8_t iMode);
+    void ioWrite(uint8_t u8Pin, uint8_t iValue);
+    uint8_t ioRead(uint8_t u8Pin);
     int getMode(void) {return _state.mode;}
     uint8_t *previousBuffer(void) { return _state.pPrevious;}
     uint8_t *currentBuffer(void) { return _state.pCurrent;}
     int einkPower(int bOn);
-    int fullUpdate(bool bFast = false, bool bKeepOn = false, BBEPRECT *pRect = NULL);
+    void deInit(void) {if (_state.pfnIODeInit) (*_state.pfnIODeInit)(&_state);}
+    int fullUpdate(int iClearMode = CLEAR_SLOW, bool bKeepOn = false, BB_RECT *pRect = NULL);
     int partialUpdate(bool bKeepOn, int iStartRow = 0, int iEndRow = 4095);
+    int smoothUpdate(bool bKeepOn, uint8_t u8Color);
+    void setPasses(uint8_t iPartialPasses, uint8_t iFullPasses = 5);
     int setRotation(int iAngle);
     int getRotation(void) { return _state.rotation;}
     void backupPlane(void);
+    void invertRect(int x, int y, int w, int h);
     void drawRoundRect(int x, int y, int w, int h, int r, uint8_t color);
     void fillRoundRect(int x, int y, int w, int h, int r, uint8_t color);
     void fillScreen(uint8_t iColor);
@@ -205,7 +263,7 @@ class FASTEPD
     void fillRect(int x, int y, int w, int h, uint8_t color);
     void setTextWrap(bool bWrap);
     void setTextColor(int iFG, int iBG = BBEP_TRANSPARENT);
-    void setCursor(int x, int y) {_state.iCursorX = x; _state.iCursorY = y;}
+    void setCursor(int x, int y);
     int loadBMP(const uint8_t *pBMP, int x, int y, int iFG, int iBG);
     int loadG5Image(const uint8_t *pG5, int x, int y, int iFG, int iBG, float fScale = 1.0f);
     void setFont(int iFont);

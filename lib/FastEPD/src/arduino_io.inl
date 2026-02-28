@@ -22,13 +22,14 @@
 #define __BB_EP_IO__
 
 // Since the Espressif I2C driver seems to corrupt memory with it's frequent allocs and frees, use bit banging
-#define BIT_BANG
+// #define BIT_BANG
 
 #ifdef BIT_BANG
 static uint8_t u8SDA_Pin, u8SCL_Pin;
-static int iDelay = 1;
+static int iDelay = 0; //1;
 #endif
-
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include "rom/ets_sys.h"
 #ifndef ARDUINO
 #include "driver/gpio.h"
@@ -47,7 +48,8 @@ static int iDelay = 1;
 #define INPUT_PULLUP 2
 #define OUTPUT 3
 #define INPUT_PULLDOWN 4
-unsigned long IRAM_ATTR micros(void)
+
+unsigned long micros(void)
 {
     return (unsigned long)(esp_timer_get_time());
 }
@@ -56,7 +58,7 @@ unsigned long millis(void)
     return micros() / 1000;
 }
 
-void IRAM_ATTR delayMicroseconds(uint32_t us)
+void delayMicroseconds(uint32_t us)
 {
     ets_delay_us(us);
 }
@@ -275,6 +277,7 @@ int bbepI2CInit(uint8_t sda, uint8_t scl)
     Wire.setTimeout(100);
 #else
     i2c_config_t conf;
+    ESP_ERROR_CHECK(i2c_driver_delete());
     conf.mode = I2C_MODE_MASTER;
     conf.sda_io_num = sda;
     conf.scl_io_num = scl;

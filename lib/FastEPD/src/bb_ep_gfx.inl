@@ -216,26 +216,31 @@ void bbepFillScreen(FASTEPDSTATE *pState, uint8_t u8Color)
 // Draw a sprite of any size in any position
 // If it goes beyond the left/right or top/bottom edges
 // it's trimmed to show the valid parts
-// This function requires a back buffer to be defined
-// The priority color (0 or 1) determines which color is painted
-// when a 1 is encountered in the source image.
+// The transparent color is used if not set to -1
 //
-void bbepDrawSprite(FASTEPDSTATE *pBBEP, const uint8_t *pSprite, int cx, int cy, int iPitch, int x, int y, uint8_t iColor)
+int bbepDrawSprite(FASTEPDSTATE *pSprite, FASTEPDSTATE *pBBEP, int x, int y, int iTransparent)
 {
-    int tx, ty, dx, dy, iStartX;
-    uint8_t *s, pix, ucSrcMask;
-    
-    if (pBBEP == NULL) return;
-    if (x+cx < 0 || y+cy < 0 || x >= pBBEP->native_width || y >= pBBEP->native_height) {
+    int iShift, cx, cy, col, row, dx, dy, iColor, iPitch, iStartX;
+    uint8_t *s, pix, ucSrcMask, iColor0, iColor1;
+
+    if (pSprite == NULL || pBBEP == NULL) return BBEP_ERROR_BAD_PARAMETER;
+
+    if (x+pSprite->native_width < 0 || y+pSprite->native_height < 0 || x >= pBBEP->native_width || y >= pBBEP->native_height) {
         pBBEP->last_error = BBEP_ERROR_BAD_PARAMETER;
-        return; // out of bounds
+        return pBBEP->last_error; // out of bounds
     }
+// We can draw 1-bpp content on 4-bpp surfaces, but not the reverse
+    if (pSprite->mode == BB_MODE_4BPP && pBBEP->mode == BB_MODE_1BPP) {
+        pBBEP->last_error = BBEP_ERROR_BAD_PARAMETER;
+        return pBBEP->last_error;
+    }
+    cx = pSprite->native_width; // starting size for content to draw
+    cy = pSprite->native_height;
     dy = y; // destination y
     if (y < 0) // skip the invisible parts
     {
         cy += y;
         y = -y;
-        pSprite += (y * iPitch);
         dy = 0;
     }
     if ((dy + cy) > pBBEP->native_height) {
@@ -252,23 +257,50 @@ void bbepDrawSprite(FASTEPDSTATE *pBBEP, const uint8_t *pSprite, int cx, int cy,
     }
     if ((x + cx) > pBBEP->native_width)
         cx = pBBEP->native_width - x;
-    for (ty=0; ty<cy; ty++)
-    {
-        s = (uint8_t *)&pSprite[(iStartX >> 3)];
-        ucSrcMask = 0x80 >> (iStartX & 7);
-        pix = *s++;
-        for (tx=0; tx<cx; tx++) {
-            if (pix & ucSrcMask) { // set pixel in source, set it in dest
-                (*pBBEP->pfnSetPixelFast)(pBBEP, dx+tx, dy+ty, iColor);
-            }
-            ucSrcMask >>= 1;
-            if (ucSrcMask == 0) { // read next byte
-                ucSrcMask = 0x80;
-                pix = *s++;
-            }
-        } // for tx
-        pSprite += iPitch;
-    } // for ty
+    if (pSprite->mode == BB_MODE_1BPP) {
+        iPitch = (pSprite->native_width + 7)/8;
+        iColor1 = BBEP_WHITE;
+        iColor0 = BBEP_BLACK;
+    } else { // 4-bpp
+        iPitch = (pSprite->native_width + 1)/2;
+        iColor1 = 0xf; // white
+        iColor0 = 0x0; // black
+    }
+    for (row=0; row<cy; row++) {
+        if (pSprite->mode == BB_MODE_1BPP) {
+            s = (uint8_t *)pSprite->pCurrent;
+            s += (row * iPitch) + (iStartX/8);
+            ucSrcMask = 0x80 >> (iStartX & 7);
+            pix = *s++;
+            for (col=0; col<cx; col++) {
+                iColor = (pix & ucSrcMask) ? iColor1 : iColor0;
+                (*pBBEP->pfnSetPixelFast)(pBBEP, dx+col, dy+row, iColor);
+                ucSrcMask >>= 1;
+                if (ucSrcMask == 0) { // read next byte
+                    ucSrcMask = 0x80;
+                    pix = *s++;
+                }
+            } // for col
+        } else { // 4-bpp
+            s = (uint8_t *)pSprite->pCurrent;
+            s += (row * iPitch) + (iStartX/2);
+            ucSrcMask = 0xf0 >> ((iStartX & 1) * 4);
+            iShift = (ucSrcMask == 0xf0) ? 4 : 0;
+            pix = *s++;
+            for (col=0; col<cx; col++) {
+                iColor = (pix & ucSrcMask);
+                iColor >>= iShift;
+                (*pBBEP->pfnSetPixelFast)(pBBEP, dx+col, dy+row, iColor);
+                ucSrcMask >>= 4;
+                iShift ^= 4;
+                if (ucSrcMask == 0) { // read next byte
+                    ucSrcMask = 0xf0;
+                    pix = *s++;
+                }
+            } // for col
+        } // 4-bpp
+    } // for row
+    return BBEP_SUCCESS;
 } /* bbepDrawSprite() */
 
 int bbepSetPixel2Clr(void *pb, int x, int y, unsigned char ucColor)
@@ -724,15 +756,143 @@ static void Scale2Gray(uint8_t *source, int width, int iPitch)
 } /* Scale2Gray() */
 
 //
+// Convert a single Unicode character into codepage 1252 (extended ASCII)
+//
+uint8_t bbepUnicodeTo1252(uint16_t u16CP)
+{
+            // convert supported Unicode values to codepage 1252
+            switch(u16CP) { // they're all over the place, so check each
+                case 0x20ac:
+                    u16CP = 0x80; // euro sign
+                    break;
+                case 0x201a: // single low quote
+                    u16CP = 0x82;
+                    break;
+                case 0x192: // small F with hook
+                    u16CP = 0x83;
+                    break;
+                case 0x201e: // double low quote
+                    u16CP = 0x84;
+                    break;
+                case 0x2026: // hor ellipsis
+                    u16CP = 0x85;
+                    break;
+                case 0x2020: // dagger
+                    u16CP = 0x86;
+                    break;
+                case 0x2021: // double dagger
+                    u16CP = 0x87;
+                    break;
+                case 0x2c6: // circumflex
+                    u16CP = 0x88;
+                    break;
+                case 0x2030: // per mille
+                    u16CP = 0x89;
+                    break;
+                case 0x160: // capital S with caron
+                    u16CP = 0x8a;
+                    break;
+                case 0x2039: // single left pointing quote
+                    u16CP = 0x8b;
+                    break;
+                case 0x152: // capital ligature OE
+                    u16CP = 0x8c;
+                    break;
+                case 0x17d: // captial Z with caron
+                    u16CP = 0x8e;
+                    break;
+                case 0x2018: // left single quote
+                    u16CP = 0x91;
+                    break;
+                case 0x2019: // right single quote
+                    u16CP = 0x92;
+                    break;
+                case 0x201c: // left double quote
+                    u16CP = 0x93;
+                    break;
+                case 0x201d: // right double quote
+                    u16CP = 0x94;
+                    break;
+                case 0x2022: // bullet
+                    u16CP = 0x95;
+                    break;
+                case 0x2013: // en dash
+                    u16CP = 0x96;
+                    break;
+                case 0x2014: // em dash
+                    u16CP = 0x97;
+                    break;
+                case 0x2dc: // small tilde
+                    u16CP = 0x98;
+                    break;
+                case 0x2122: // trademark
+                    u16CP = 0x99;
+                    break;
+                case 0x161: // small s with caron
+                    u16CP = 0x9a;
+                    break;
+                case 0x203a: // single right quote
+                    u16CP = 0x9b;
+                    break;
+                case 0x153: // small ligature oe
+                    u16CP = 0x9c;
+                    break;
+                case 0x17e: // small z with caron
+                    u16CP = 0x9e;
+                    break;
+                case 0x178: // capital Y with diaeresis
+                    u16CP = 0x9f;
+                    break;
+                default:
+                    if (u16CP > 0xff) u16CP = 32; // something went wrong
+                    break;
+            } // switch on character
+    return (uint8_t)u16CP;
+} /* bbepUnicodeTo1252() */
+//
+// Convert a Unicode string into our extended ASCII set (codepage 1252)
+//
+void bbepUnicodeString(const char *szMsg, uint8_t *szExtMsg)
+{
+int i, j;
+uint8_t c;
+uint16_t u16CP; // 16-bit codepoint encoded by the multi-byte sequence
+
+    i = j = 0;
+    while (szMsg[i]) {
+        c = szMsg[i++];
+        if (c < 0x80) { // normal 7-bit ASCII
+             u16CP = c;
+        } else { // multibyte
+             if (c < 0xe0) { // first 0x800 characters
+                  u16CP = (c & 0x3f) << 6;
+                  u16CP += (szMsg[i++] & 0x3f);
+             } else if (c < 0xf0) { // 0x800 to 0x10000
+                  u16CP = (c & 0x3f) << 12;
+                  u16CP += ((szMsg[i++] & 0x3f)<<6);
+                  u16CP += (szMsg[i++] & 0x3f);
+             } else { // 0x10001 to 0x20000
+                  u16CP = 32; // convert to spaces (nothing supported here)
+             }
+        } // multibyte
+        szExtMsg[j++] = bbepUnicodeTo1252(u16CP);
+    } // while szMsg[i]
+    szExtMsg[j++] = 0; // zero terminate it
+} /* bbepUnicodeString() */
+//
 // Draw a string of BB_FONT characters directly into the EPD framebuffer
 //
-int bbepWriteStringCustom(FASTEPDSTATE *pBBEP, BB_FONT *pFont, int x, int y, char *szMsg, int iColor)
+int bbepWriteStringCustom(FASTEPDSTATE *pBBEP, const void *pFont, int x, int y, char *szMsg, int iColor)
 {
-    int16_t n, rc, i, h, w, x_off, end_y, dx, dy, tx, ty, tw, iBG;
+    int16_t n, rc, i, h, w, end_y, dx, dy, tx, ty, tw, iBG;
     uint8_t *s;
-    int width, height;
-    BB_GLYPH *pGlyph;
+    int width, height, angle;
+    BB_FONT *pBBF;
+    BB_FONT_SMALL *pBBFS;
+    BB_GLYPH *pGlyph = NULL;
+    BB_GLYPH_SMALL *pGlyphSmall = NULL;
     uint8_t *pBits, u8EndMask;
+    uint8_t szExtMsg[256]; // translated extended ASCII message text
     uint8_t c, first, last;
     
     if (pBBEP == NULL) return BBEP_ERROR_BAD_PARAMETER;
@@ -745,6 +905,13 @@ int bbepWriteStringCustom(FASTEPDSTATE *pBBEP, BB_FONT *pFont, int x, int y, cha
     if (pBBEP->anti_alias) {
         width *= 2;
         height *= 2;
+        x *= 2;
+        y *= 2;
+    }
+    if (szMsg[1] == 0 && (szMsg[0] & 0x80)) { // single byte means we're coming from the Arduino write() method with pre-converted extended ASCII
+        szExtMsg[0] = szMsg[0]; szExtMsg[1] = 0;
+    } else {
+        bbepUnicodeString(szMsg, szExtMsg); // convert to extended ASCII
     }
     iBG = pBBEP->iBG;
     if (iBG == -1) iBG = BBEP_TRANSPARENT; // -1 = don't care
@@ -752,47 +919,91 @@ int bbepWriteStringCustom(FASTEPDSTATE *pBBEP, BB_FONT *pFont, int x, int y, cha
         x = pBBEP->iCursorX;
     if (y == -1)
         y = pBBEP->iCursorY;
-    first = pgm_read_byte(&pFont->first);
-    last = pgm_read_byte(&pFont->last);
+    if (*(uint16_t *)pFont == BB_FONT_MARKER) {
+        pBBF = (BB_FONT *)pFont; pBBFS = NULL;
+        first = pBBF->first;
+        last = pBBF->last;
+        angle = pBBF->rotation;
+        // Point to the start of the compressed data
+        pBits = (uint8_t *)pFont;
+        pBits += sizeof(BB_FONT);
+        pBits += (last - first + 1) * sizeof(BB_GLYPH);
+    } else {
+        pBBFS = (BB_FONT_SMALL *)pFont; pBBF = NULL;
+        first = pBBFS->first;
+        last = pBBFS->last;
+        angle = pBBFS->rotation;
+        // Point to the start of the compressed data
+        pBits = (uint8_t *)pFont;
+        pBits += sizeof(BB_FONT_SMALL);
+        pBits += (last - first + 1) * sizeof(BB_GLYPH_SMALL);
+    }
     if (x == CENTER_X) { // center the string on the e-paper
         dx = i = 0;
-        while (szMsg[i]) {
-            c = szMsg[i++];
+        while (szExtMsg[i]) {
+            c = szExtMsg[i++];
             if (c < first || c > last) // undefined character
                 continue; // skip it
             c -= first; // first char of font defined
-            pGlyph = &pFont->glyphs[c]; // glyph info for this character
-            dx += pgm_read_byte(&pGlyph->xAdvance);
+            if (pBBF) {
+                pGlyph = &pBBF->glyphs[c]; // glyph info for this character
+                dx += pGlyph->xAdvance;
+            } else {
+                pGlyphSmall = &pBBFS->glyphs[c]; // glyph info for this character
+                dx += pGlyphSmall->xAdvance;
+            }
         }
         x = (pBBEP->width - dx)/2;
         if (x < 0) x = 0;
     }
-    // Point to the start of the compressed data
-    pBits = (uint8_t *)pFont;
-    pBits += sizeof(BB_FONT);
-    pBits += (last - first + 1) * sizeof(BB_GLYPH);
     i = 0;
-    while (szMsg[i] && x < width && y < height) {
-        c = szMsg[i++];
+    while (szExtMsg[i] && x < width && y < height) {
+        int char_width, x_off, bitmap_offset;
+        c = szExtMsg[i++];
         if (c < first || c > last) // undefined character
             continue; // skip it
         c -= first; // first char of font defined
-        pGlyph = &pFont->glyphs[c]; // glyph info for this character
-        if (pgm_read_byte(&pGlyph->width) > 1) { // skip this if drawing a space
+        if (pBBF) {
+            pGlyph = &pBBF->glyphs[c]; // glyph info for this character
+            char_width = pGlyph->width;
             x_off = pGlyph->xOffset;
-            s = pBits + pgm_read_word(&pGlyph->bitmapOffset); // start of compressed bitmap data
-            if (pgm_read_dword(&pFont->rotation) == 0 || pgm_read_dword(&pFont->rotation) == 180) {
-                h = pgm_read_word(&pGlyph->height);
-                w = pgm_read_byte(&pGlyph->width);
-                dx = x + (int16_t)pgm_read_word(&pGlyph->xOffset); // offset from character UL to start drawing
-                dy = y + (int16_t)pgm_read_word(&pGlyph->yOffset);
+            bitmap_offset = pGlyph->bitmapOffset;
+        } else {
+            pGlyphSmall = &pBBFS->glyphs[c]; // glyph info for this character
+            char_width = pGlyphSmall->width;
+            x_off = pGlyphSmall->xOffset;
+            bitmap_offset = pGlyphSmall->bitmapOffset;
+        }
+        if (char_width > 1) { // skip this if drawing a space
+            s = pBits + bitmap_offset; // start of compressed bitmap data
+            if (angle == 0 || angle == 180) {
+                if (pBBF) {
+                    h = pGlyph->height;
+                    w = pGlyph->width;
+                    dx = x + pGlyph->xOffset; // offset from character UL to start drawing
+                    dy = y + pGlyph->yOffset;
+                } else {
+                    h = pGlyphSmall->height;
+                    w = pGlyphSmall->width;
+                    dx = x + pGlyphSmall->xOffset; // offset from character UL to start drawing
+                    dy = y + pGlyphSmall->yOffset;
+                }
             } else { // rotated
-                w = pgm_read_word(&pGlyph->height);
-                h = pgm_read_byte(&pGlyph->width);
-                n = (int16_t)pgm_read_word(&pGlyph->yOffset); // offset from character UL to start drawing
-                dx = x;
-                if (-n < w) dx -= (w+n); // since we draw from the baseline
-                dy = y + (int16_t)pgm_read_word(&pGlyph->xOffset);
+                if (pBBF) {
+                    w = pGlyph->height;
+                    h = pGlyph->width;
+                    n = pGlyph->yOffset; // offset from character UL to start drawing
+                    dx = x;
+                    if (-n < w) dx -= (w+n); // since we draw from the baseline
+                    dy = y + pGlyph->xOffset;
+                } else {
+                    w = pGlyphSmall->height;
+                    h = pGlyphSmall->width;
+                    n = pGlyphSmall->yOffset; // offset from character UL to start drawing
+                    dx = x;
+                    if (-n < w) dx -= (w+n); // since we draw from the baseline
+                    dy = y + pGlyphSmall->xOffset;
+                }
             }
             if ((dy + h) > height) { // trim it
                 h = height - dy;
@@ -802,7 +1013,11 @@ int bbepWriteStringCustom(FASTEPDSTATE *pBBEP, BB_FONT *pFont, int x, int y, cha
                 u8EndMask <<= (8-(w & 7));
             }
             end_y = dy + h;
-            ty = (pgm_read_word(&pGlyph[1].bitmapOffset) - (intptr_t)(s - pBits)); // compressed size
+            if (pBBF) {
+                ty = (pGlyph[1].bitmapOffset - (intptr_t)(s - pBits)); // compressed size
+            } else {
+                ty = (pGlyphSmall[1].bitmapOffset - (intptr_t)(s - pBits)); // compressed size
+            }
             if (ty < 0 || ty > 4096) ty = 4096; // DEBUG
             rc = g5_decode_init(&g5dec, w, h, s, ty);
             if (rc != G5_SUCCESS) {
@@ -862,10 +1077,16 @@ int bbepWriteStringCustom(FASTEPDSTATE *pBBEP, BB_FONT *pFont, int x, int y, cha
                 }
             } // non-antialased
         } // if not drawing a space
-        if (pgm_read_dword(&pFont->rotation) == 0 || pgm_read_dword(&pFont->rotation) == 180) {
-            x += pgm_read_byte(&pGlyph->xAdvance); // width of this character
+        if (angle == 0 || angle == 180) {
+            if (pBBF)
+                x += pGlyph->xAdvance; // width of this character
+            else
+                x += pGlyphSmall->xAdvance;
         } else {
-            y += pgm_read_byte(&pGlyph->xAdvance);
+            if (pBBF)
+                y += pGlyph->xAdvance;
+            else
+                y += pGlyphSmall->xAdvance;
         }
     } // while drawing characters
     pBBEP->iCursorX = x;
@@ -1246,30 +1467,21 @@ int bbepWriteString(FASTEPDSTATE *pBBEP, int x, int y, char *szMsg, int iSize, i
 // Get the bounding rectangle of text
 // The position of the rectangle is based on the current cursor position and font
 //
-int bbepGetStringBox(FASTEPDSTATE *pBBEP, const char *szMsg, BBEPRECT *pRect)
+int bbepGetStringBox(FASTEPDSTATE *pBBEP, const char *szMsg, BB_RECT *pRect)
 {
-    int cx = 0;
-    unsigned int c, i = 0;
-    BB_GLYPH *pBBG;
-    BB_FONT *pFont;
-    int miny, maxy = 0;
-    
-    if (!pBBEP || !szMsg || !pRect) return BBEP_ERROR_BAD_PARAMETER;
-    
-    pFont = (BB_FONT *)pBBEP->pFont;
-    if (pBBEP->iFont == -1 && pFont) { // custom font
-        miny = 1000; maxy = 0;
-        while (szMsg[i]) {
-            c = szMsg[i++];
-            if (c < pFont->first || c > pFont->last) // undefined character
-                continue; // skip it
-            c -= pFont->first; // first char of font defined
-            pBBG = &pFont->glyphs[c];
-            cx += pBBG->xAdvance;
-            if (pBBG->yOffset < miny) miny = pBBG->yOffset;
-            if (pBBG->height+pBBG->yOffset > maxy) maxy = pBBG->height+pBBG->yOffset;
-        }
-    } else { // fixed fonts
+int cx = 0;
+unsigned int c, i = 0;
+BB_FONT *pBBF;
+BB_FONT_SMALL *pBBFS;
+BB_GLYPH *pGlyph;
+BB_GLYPH_SMALL *pSmallGlyph;
+int miny, maxy;
+uint8_t szExtMsg[80];
+
+   miny = 4000; maxy = 0;
+   if (pBBEP == NULL || pRect == NULL || szMsg == NULL) return BBEP_ERROR_BAD_PARAMETER; // bad pointers
+
+   if (pBBEP->pFont == NULL) { // built-in font
         miny = 0;
         switch (pBBEP->iFont) {
             case FONT_6x8:
@@ -1290,12 +1502,39 @@ int bbepGetStringBox(FASTEPDSTATE *pBBEP, const char *szMsg, BBEPRECT *pRect)
                 break;
         }
         cx *= strlen(szMsg);
-    }
-    pRect->x = pBBEP->iCursorX;
-    pRect->y = pBBEP->iCursorY + miny;
-    pRect->w = cx;
-    pRect->h = maxy - miny;
-    return BBEP_SUCCESS;
+   } else { // proportional fonts
+       bbepUnicodeString(szMsg, szExtMsg); // convert to extended ASCII
+       if (pgm_read_word(pBBEP->pFont) == BB_FONT_MARKER) {
+           pBBF = (BB_FONT *)pBBEP->pFont; pBBFS = NULL;
+       } else { // small font
+           pBBFS = (BB_FONT_SMALL *)pBBEP->pFont; pBBF = NULL;
+       }
+       while (szExtMsg[i]) {
+           c = szExtMsg[i++];
+           if (pBBF) { // big font
+               if (c < pgm_read_byte(&pBBF->first) || c > pgm_read_byte(&pBBF->last)) // undefined character
+                   continue; // skip it
+               c -= pgm_read_byte(&pBBF->first); // first char of font defined
+               pGlyph = &pBBF->glyphs[c];
+               cx += pgm_read_word(&pGlyph->xAdvance);
+               if ((int16_t)pgm_read_word(&pGlyph->yOffset) < miny) miny = pgm_read_word(&pGlyph->yOffset);
+               if (pgm_read_word(&pGlyph->height)+(int16_t)pgm_read_word(&pGlyph->yOffset) > maxy) maxy = pgm_read_word(&pGlyph->height)+(int16_t)pgm_read_word(&pGlyph->yOffset);
+           } else {  // small font
+               if (c < pgm_read_byte(&pBBFS->first) || c > pgm_read_byte(&pBBFS->last)) // undefined character
+                   continue; // skip it
+               c -= pgm_read_byte(&pBBFS->first); // first char of font defined
+               pSmallGlyph = &pBBFS->glyphs[c];
+               cx += pgm_read_byte(&pSmallGlyph->xAdvance);
+               if ((int8_t)pgm_read_byte(&pSmallGlyph->yOffset) < miny) miny = (int8_t)pgm_read_byte(&pSmallGlyph->yOffset);
+               if (pgm_read_byte(&pSmallGlyph->height)+(int8_t)pgm_read_byte(&pSmallGlyph->yOffset) > maxy) maxy = pgm_read_byte(&pSmallGlyph->height)+(int8_t)pgm_read_byte(&pSmallGlyph->yOffset);
+           } // small
+       }
+   } // prop fonts
+   pRect->w = cx;
+   pRect->x = pBBEP->iCursorX;
+   pRect->y = pBBEP->iCursorY + miny;
+   pRect->h = maxy - miny + 1;
+   return BBEP_SUCCESS;
 } /* bbepGetStringBox() */
 //
 // Draw a line from x1,y1 to x2,y2 in the given color
@@ -1479,6 +1718,62 @@ void bbepEllipse(FASTEPDSTATE *pBBEP, int iCenterX, int iCenterY, int32_t iRadiu
         }
     }
 } /* bbepEllipse() */
+
+//
+// Invert a rectangle of pixels
+//
+void bbepInvertRect(FASTEPDSTATE *pBBEP, int x, int y, int w, int h)
+{
+int tx, ty;
+uint8_t u8, u8Mask, *s;
+int iPitch;
+
+    if (pBBEP == NULL) return;
+    if (x < 0 || y < 0 || w < 0 || h < 0 ||
+        x >= pBBEP->width || y >= pBBEP->height || (x+w) > pBBEP->width || (y+h) > pBBEP->height) {
+        pBBEP->last_error = BBEP_ERROR_BAD_PARAMETER;
+        return; // invalid coordinates
+    }
+
+    if (pBBEP->mode == BB_MODE_1BPP) {
+        iPitch = pBBEP->width / 8;
+        for (ty=y; ty<y+h; ty++) {
+            s = pBBEP->pCurrent;
+            s += (ty * iPitch) + (x >> 3);
+            u8Mask = 0x80 >> (x & 7);
+            u8 = s[0]; // read current pixels
+            for (tx=0; tx<w; tx++) {
+                u8 ^= u8Mask;
+                u8Mask >>= 1;
+                if (u8Mask == 0) { // next byte
+                    *s++ = u8;
+                    u8 = s[0];
+                    u8Mask = 0x80;
+                }
+            } // for tx
+            if (u8Mask != 0x80) { // write final partial byte
+                s[0] = u8;
+            }
+        } // for ty
+    } else {  // 4-bpp
+        iPitch = pBBEP->width / 2;
+        for (ty = y; ty < y+h; ty++) {
+            s = pBBEP->pCurrent;
+            s += (ty * iPitch) + (x >> 1);
+            u8Mask = 0xf0 >> ((x & 1)*4);
+            u8 = s[0];
+            for (tx=0; tx<w; tx++) {
+                u8 ^= u8Mask;
+                u8Mask = ~u8Mask;
+                if (u8Mask == 0xf0) { // next byte
+                   *s++ = u8;
+                   u8 = s[0];
+                }
+            } // for tx
+        } // for ty 
+    }
+} /* bbepInvertRect() */
+
 //
 // Draw an outline or filled rectangle
 //
@@ -1570,8 +1865,10 @@ int bbepSetRotation(FASTEPDSTATE *pState, int iAngle)
             pState->width = pState->native_width;
             pState->height = pState->native_height;
             if (pState->mode == BB_MODE_1BPP) {
+                pState->pfnSetPixel = bbepSetPixel2Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast2Clr;
             } else {
+                pState->pfnSetPixel = bbepSetPixel16Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast16Clr;
             }
             break;
@@ -1579,8 +1876,10 @@ int bbepSetRotation(FASTEPDSTATE *pState, int iAngle)
             pState->width = pState->native_height;
             pState->height = pState->native_width;
             if (pState->mode == BB_MODE_1BPP) {
+                pState->pfnSetPixel = bbepSetPixel2Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast2Clr_90;
             } else {
+                pState->pfnSetPixel = bbepSetPixel16Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast16Clr_90;
             }
             break;
@@ -1588,8 +1887,10 @@ int bbepSetRotation(FASTEPDSTATE *pState, int iAngle)
             pState->width = pState->native_width;
             pState->height = pState->native_height;
             if (pState->mode == BB_MODE_1BPP) {
+                pState->pfnSetPixel = bbepSetPixel2Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast2Clr_180;
             } else {
+                pState->pfnSetPixel = bbepSetPixel16Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast16Clr_180;
             }
             break;
@@ -1597,8 +1898,10 @@ int bbepSetRotation(FASTEPDSTATE *pState, int iAngle)
             pState->width = pState->native_height;
             pState->height = pState->native_width;
             if (pState->mode == BB_MODE_1BPP) {
+                pState->pfnSetPixel = bbepSetPixel2Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast2Clr_270;
             } else {
+                pState->pfnSetPixel = bbepSetPixel16Clr;
                 pState->pfnSetPixelFast = bbepSetPixelFast16Clr_270;
             }
             break;

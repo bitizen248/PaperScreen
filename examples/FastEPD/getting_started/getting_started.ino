@@ -49,7 +49,7 @@ void setup()
 
 void loop()
 {
-  BBEPRECT rect;
+  BB_RECT rect;
   int i, j;
   // initialize the I/O and memory
 //  epaper.initPanel(BB_PANEL_T5EPAPERS3);
@@ -58,7 +58,7 @@ void loop()
 //    epaper.initPanel(BB_PANEL_INKPLATE5V2);
 //    epaper.initPanel(BB_PANEL_EPDIY_V7_16);
 //    epaper.setPanelSize(2760, 2070, 0);
-    epaper.initPanel(BB_PANEL_EPDIY_V7);
+    epaper.initPanel(BB_PANEL_EPDIY_V7, 26666666);
     epaper.setPanelSize(960, 540);
     // The default drawing mode is 1-bit per pixel
     epaper.clearWhite(true); // fill the current image buffer and eink panel with white
