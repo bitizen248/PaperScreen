@@ -44,7 +44,7 @@ void setup(void)
     // The VCC3V3 power supply is controlled by LORA_EN.
     // Raise the enable signal of IO00 of the expansion chip PCA9535 to LORA_EN
     io.pinMode(ExtensionIOXL9555::IO0, OUTPUT);
-    io.digitalWrite(ExtensionIOXL9555::IO0, LOW); // Enable Lora & GPS power
+    io.digitalWrite(ExtensionIOXL9555::IO0, HIGH); // Enable Lora & GPS power
 
     Serial.println("It does not support GPS function. Of course, you can use an external GPS module to connect to the Gover interface.");
 
