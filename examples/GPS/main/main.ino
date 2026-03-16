@@ -16,6 +16,7 @@
 
 void displayInfo();
 static bool GPS_Recovery();
+bool detectGPSHardware(uint32_t timeoutMs = 2000);
 bool gps_init(void);
 bool setupGPS();
 
@@ -45,8 +46,6 @@ void setup(void)
     // Raise the enable signal of IO00 of the expansion chip PCA9535 to LORA_EN
     io.pinMode(ExtensionIOXL9555::IO0, OUTPUT);
     io.digitalWrite(ExtensionIOXL9555::IO0, HIGH); // Enable Lora & GPS power
-
-    Serial.println("It does not support GPS function. Of course, you can use an external GPS module to connect to the Gover interface.");
 
     gps_init();
 
@@ -78,6 +77,13 @@ bool gps_init(void)
 {   
     bool result = false;
     // L76K GPS USE 9600 BAUDRATE
+    SerialGPS.begin(9600, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+
+    if (!detectGPSHardware(2000)) {
+        Serial.println("No GPS hardware detected (no serial output). Skipping GPS init.");
+        return false;
+    }
+
     result = setupGPS();
     if(!result) {
         // Set u-blox m10q gps baudrate 38400
@@ -162,6 +168,25 @@ void displayInfo()
     Serial.println();
 }
 
+bool detectGPSHardware(uint32_t timeoutMs)
+{
+    // Check if the serial port has GPS output (NMEA/UBX) to determine if there 
+    // is an available GPS module
+    uint32_t start = millis();
+    while (millis() - start < timeoutMs) {
+        if (SerialGPS.available()) {
+            // Read a portion of the data to avoid being disturbed by the 
+            // old data during the next initialization process.
+            while (SerialGPS.available()) {
+                SerialGPS.read();
+            }
+            return true;
+        }
+        delay(10);
+    }
+    return false;
+}
+
 bool setupGPS()
 {
     // L76K GPS USE 9600 BAUDRATE
@@ -194,6 +219,7 @@ bool setupGPS()
                 Serial.println("Get L76K timeout!");
                 return false;
             }
+            delay(1);
         }
         SerialGPS.setTimeout(10);
         ver = SerialGPS.readStringUntil('\n');
@@ -278,6 +304,7 @@ static int getAck(uint8_t *buffer, uint16_t size, uint8_t requestedClass, uint8_
                 break;
             }
         }
+        delay(1);
     }
     return 0;
 }
