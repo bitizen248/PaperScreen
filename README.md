@@ -10,26 +10,21 @@
 <img src="https://img.shields.io/badge/Arduino-2.0.14-008284" height="20px"></a>
 </p>
 
-![alt text](./docs/README_img/image.png)
+| Front | Back |
+| :---: | :---: |
+| ![alt text](./docs/README_img/T5_S3_正面.png) | ![alt text](./docs/README_img/T5_S3_反面.png) |
 
 ## :zero: Version 🎁
 
 ### 1、Version
 
-|                                       ID                                       |  Hardware   |  Software   | Remark |
-| :----------------------------------------------------------------------------: | :---------: | :---------: | :----: |
-| [H752-01](https://github.com/Xinyuan-LilyGO/T5S3-4.7-e-paper-PRO/tree/H752-01) | v1.0-241224 | v1.2_250118 | latest |
-|    [H752](https://github.com/Xinyuan-LilyGO/T5S3-4.7-e-paper-PRO/tree/H752)    | v1.0-240810 | v1.0-241203 |   -    |
+|        version         | TPS65185 | GPS | LoRa |                                  Branch                                  |                                         Where to buy                                          |
+| :--------------------: | :------: | :-: | :--: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: |
+|   T5 E-Paper S3 Pro    |    ✅     |  ✅  |  ✅   |    [H752-01](https://github.com/Xinyuan-LilyGO/T5S3-4.7-e-paper-PRO)     |   [LilyGo Store](https://lilygo.cc/products/t5-e-paper-s3-pro?_pos=2&_sid=e9bdb39ec&_ss=r)    |
+| T5 E-Paper S3 Pro Lite |    ✅     |  ❌  |  ❌   |    [H752-01](https://github.com/Xinyuan-LilyGO/T5S3-4.7-e-paper-PRO)     | [LilyGo Store](https://lilygo.cc/products/t5-e-paper-s3-pro-lite?_pos=1&_sid=e9bdb39ec&_ss=r) |
+|          H752          |    ❌     |  ❌  |  ✅   | [H752](https://github.com/Xinyuan-LilyGO/T5S3-4.7-e-paper-PRO/tree/H752) |                                           Sold out                                            |
 
-H752-01 new version :
-- Adds the ink screen power management chip TPS65185;
-- Supports local refresh, can adjust the Vcom voltage control display color depth;
-- Support [epdiy](https://github.com/vroland/epdiy) v7 direct drive.
-- Added GPS module;
-
-### 2、Where to buy.
-
-[LilyGo Store](https://lilygo.cc/products/t5-e-paper-s3-pro)
+Note: The `Lite` version and the `Pro` version share the same schematic diagram, but the `Lite` version does not have LoRa and GPS.
 
 ## :one: Product 🎁
 
