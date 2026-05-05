@@ -46,18 +46,26 @@ Note: The `Lite` version and the `Pro` version share the same schematic diagram,
 
 - [ [FastEPD](https://github.com/Xinyuan-LilyGO/FastEPD) ] : Optimized library for driving parallel eink displays with the ESP32
 
-## :two: Module 🎁
+## :two: Update program 🎁
 
-Datasheets on the chip are available in [./hardware](./hardware/) directory.
+Before downloading the program, connect the device to your computer, select the corresponding COM port, and then set the device to download mode
+- :one: Hold the BOOT key without releasing it
+- :two: Click the RST button on the back and release
+- :three: Finally, release the BOOT key
 
-|  Name   |                            Dependency library                            |
-| :-----: | :----------------------------------------------------------------------: |
-|  epdiy  |                     https://github.com/vroland/epdiy                     |
-| SX1262  |      [jgromes/RadioLib@6.5.0](https://github.com/jgromes/RadioLib)       |
-| BQ25896 |   [lewisxhe/XPowersLib@^0.2.3](https://github.com/lewisxhe/XPowersLib)   |
-|   GPS   | [mikalhart/TinyGPSPlus@^1.1.0](https://github.com/mikalhart/TinyGPSPlus) |
-| Sensor  |    [lewisxhe/SensorLib@0.2.2](https://github.com/lewisxhe/SensorsLib)    |
-|  LVGL   |      [lvgl/lvgl@^8.3.11](https://github.com/lvgl/lvgl/tree/v8.3.11)      |
+![alt text](./docs/flash_download_tool/image.png)
+
+### 1. Use `LILYGO Spark` to download the program
+
+- Download the software from [LILYGO Spark](https://lilygo.cc/en-us/pages/lilygo-spark?srsltid=AfmBOoorTB7ptFu2LQNLRnoI2SA0zBGJTN6JpI9J3hmHEkKhBQSmeu0Y)
+
+- Search for your device name in `LILYGO Spark` and download the corresponding program
+
+![alt text](./docs/README_img/lilygo_spark.png)
+
+### 2. Use ESP official `flash_download_tool` to download the program
+
+Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.md)
 
 ## :three: Quick Start 🎁
 
@@ -104,34 +112,33 @@ Datasheets on the chip are available in [./hardware](./hardware/) directory.
 | USB Mode                             | **CDC and JTAG**                   |
 
 
-### 3、Folder structure:
+### 3、Folder structure
 
 ~~~
-├─boards  : Some information about the board for the platformio.ini configuration project;
-├─data    : Picture resources used by the program;
-├─example : Some examples;
-├─firmare : `factory` compiled firmware;
-├─hardware: Schematic diagram of the board, chip data;
-├─lib     : Libraries used in the project;
-
+├─boards      : Board configuration files for PlatformIO;
+├─DXF         : Board and shell size drawings (DXF/DWG format);
+├─docs        : Documentation images;
+├─examples    : Example projects for testing various hardware features;
+├─firmware    : Pre-compiled factory firmware;
+├─hardware    : Schematics and chip datasheets;
+├─lib         : Third-party libraries used in the project;
 ~~~
 
 ### 4、Examples
 
-~~~
- -✅ bq25896：bq25896 test
- -✅ bq27220：bq27220 test
- -✅ display_test：Ink screen display test.
- -✅ factory：Factory firmware program.
- -✅ GPS：The GPS test needs to be done outdoors.
- -✅ io_extend：IO expansion chip test.
- -✅ lora_recv：SX1262 LoRa send test.
- -✅ lora_send：SX1262 LoRa recv test.
- -✅ lvgl_test：Test using LVGL as image engine.
- -✅ rtc_pcf8563：Real-time clock chip test.
- -✅ sd_card：SD card read test.
- -✅ touch：GT911 test.
-~~~
+| Example | Path | Description |
+|:------- |:---- |:---------- |
+| bq25896 | examples/bq25896 | BQ25896 battery charger IC test |
+| bq27220 | examples/bq27220 | BQ27220 fuel gauge IC test |
+| factory | examples/factory | Factory firmware program |
+| GPS | examples/GPS | GPS module test (outdoor required) |
+| io_extend | examples/io_extend | PCA9535PW I2C IO expansion IC test |
+| lora_recv | examples/lora_recv | SX1262 LoRa receive test |
+| lora_send | examples/lora_send | SX1262 LoRa send test |
+| lvgl_test | examples/lvgl_test | LVGL graphics library test |
+| nvs_test | examples/nvs_test | NVS (non-volatile storage) test |
+| sd_card | examples/sd_card | SD card read/write test |
+| touch | examples/touch | GT911 capacitive touch IC test |
 
 ## :four: Pins 🎁
 
