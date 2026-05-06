@@ -60,6 +60,7 @@ SensorPCF8563 rtc;
 
 // LVGL
 #define DISP_BUF_SIZE (epd_rotated_display_width() * epd_rotated_display_height())
+#define EPD_IMAGE_BUF_SIZE (((epd_rotated_display_width() + 1) / 2) * epd_rotated_display_height())
 uint8_t *decodebuffer = NULL;
 volatile bool disp_flush_enabled = true;
 volatile bool indev_touch_enabled = true;
@@ -178,30 +179,64 @@ void disp_refresh_screen(void)
 /*********************************************************************************
  *                            STATIC  FUNCTION
  * *******************************************************************************/
+static inline uint8_t lv_color_to_epd_gray4(lv_color_t color)
+{
+    lv_color32_t c32;
+    c32.full = lv_color_to32(color);
+
+    uint16_t gray = (uint16_t)c32.ch.red * 76U +
+                    (uint16_t)c32.ch.green * 150U +
+                    (uint16_t)c32.ch.blue * 30U;
+    uint8_t gray4 = (uint8_t)(((gray >> 8) + 8U) >> 4);
+    return gray4 > 0x0F ? 0x0F : gray4;
+}
+
+static inline void epd_image_set_pixel_4bpp(uint8_t *buf, int32_t width, int32_t x, int32_t y, uint8_t gray4)
+{
+    const int32_t pitch = (width + 1) / 2;
+    uint8_t *dst = &buf[y * pitch + (x >> 1)];
+
+    // This epdiy fork stores the even/left pixel in the low nibble.
+    if (x & 1) {
+        *dst = (uint8_t)((*dst & 0x0F) | (gray4 << 4));
+    } else {
+        *dst = (uint8_t)((*dst & 0xF0) | gray4);
+    }
+}
+
 static void disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
 {
+    if(decodebuffer == NULL) {
+        lv_disp_flush_ready(disp);
+        return;
+    }
+
     if(disp_flush_enabled) {
-        uint16_t w = lv_area_get_width(area) / 2;
-        uint16_t h = lv_area_get_height(area);
-        lv_color32_t *t32 = (lv_color32_t *)color_p;
+        int32_t w = lv_area_get_width(area);
+        int32_t h = lv_area_get_height(area);
+        int32_t screen_w = epd_rotated_display_width();
+        int32_t screen_h = epd_rotated_display_height();
 
 #if 0   // Mirror screen or not
-        int w2 = w * 2;
         for(int i = 0; i < h ; i++) {
-            for(int j = 0; j < w2 / 2; j++) {
-                lv_color_t t = *(color_p + (i * w2) + j);
-                *(color_p + (i * w2) + j) = *(color_p + (i * w2) + (w2 - j - 1));
-                *(color_p + (i * w2) + (w2 - j - 1)) = t;
+            for(int j = 0; j < w / 2; j++) {
+                lv_color_t t = *(color_p + (i * w) + j);
+                *(color_p + (i * w) + j) = *(color_p + (i * w) + (w - j - 1));
+                *(color_p + (i * w) + (w - j - 1)) = t;
             }
         }
 #endif
-        for(int i = 0; i < (w * h) ; i++) {
-            lv_color8_t ret;
-            LV_COLOR_SET_R8(ret, LV_COLOR_GET_R(*t32) >> 5); /*8 - 3  = 5*/
-            LV_COLOR_SET_G8(ret, LV_COLOR_GET_G(*t32) >> 5); /*8 - 3  = 5*/
-            LV_COLOR_SET_B8(ret, LV_COLOR_GET_B(*t32) >> 6); /*8 - 2  = 6*/
-            decodebuffer[i] = ret.full;
-            t32++;
+        for(int32_t y = 0; y < h; y++) {
+            int32_t dst_y = area->y1 + y;
+            if(dst_y < 0 || dst_y >= screen_h) continue;
+
+            for(int32_t x = 0; x < w; x++) {
+                int32_t dst_x = area->x1 + x;
+                if(dst_x < 0 || dst_x >= screen_w) continue;
+
+                uint8_t gray4 = lv_color_to_epd_gray4(color_p[y * w + x]);
+                epd_image_set_pixel_4bpp(decodebuffer, screen_w, dst_x, dst_y, gray4);
+            }
         }
         // printf("[disp_flush] x1:%d, y1:%d, w:%d, h:%d\n", area->x1, area->y1, w, h);
     }
@@ -268,7 +303,7 @@ static void lv_port_disp_init(void)
 
     lv_color_t *lv_disp_buf_1 = (lv_color_t *)ps_calloc(sizeof(lv_color_t), DISP_BUF_SIZE);
     lv_color_t *lv_disp_buf_2 = (lv_color_t *)ps_calloc(sizeof(lv_color_t), DISP_BUF_SIZE);
-    decodebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), DISP_BUF_SIZE / 2);
+    decodebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_IMAGE_BUF_SIZE);
     lv_disp_draw_buf_init(&draw_buf, lv_disp_buf_1, lv_disp_buf_2, DISP_BUF_SIZE);
 
     static lv_disp_drv_t disp_drv;
