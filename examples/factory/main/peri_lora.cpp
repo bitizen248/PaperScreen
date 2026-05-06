@@ -5,13 +5,14 @@
 #include "peripheral.h"
 #include "ui_port.h"
 
-TaskHandle_t lora_handle;
+TaskHandle_t lora_handle = NULL;
 
 static SX1262 radio = new Module(BOARD_LORA_CS, BOARD_LORA_IRQ, BOARD_LORA_RST, BOARD_LORA_BUSY);
 static int lora_mode = LORA_MODE_SEND;
 static String lora_recv_data;
 static bool lora_recv_success = false;
 static int lora_recv_rssi = 0;
+static bool lora_ready = false;
 
 // transmit 
 static int transmissionState = RADIOLIB_ERR_NONE;
@@ -33,13 +34,21 @@ void lora_task(void *param)
 {
     while (1)
     {
-        lora_receive_loop();
+        if (lora_ready) {
+            lora_receive_loop();
+        }
         delay(500);
     }
 }
 
 bool lora_sx1262_init(void)
 {
+    lora_ready = false;
+    lora_handle = NULL;
+    lora_recv_success = false;
+    transmittedFlag = false;
+    receivedFlag = false;
+
     // initialize SX1262 with default settings
     Serial.print(F("[SX1262] Initializing ... "));
     int state = radio.begin();
@@ -52,8 +61,6 @@ bool lora_sx1262_init(void)
         Serial.print(F("failed, code "));
         Serial.println(state);
         return false;
-        // while (true)
-            ;
     }
 
     // set the function that will be called
@@ -164,7 +171,12 @@ bool lora_sx1262_init(void)
     transmissionState = radio.startTransmit("Hello World!");
 
     Serial.print(F("[SX1262] recv task Suspend ... "));
-    xTaskCreate(lora_task, "lora_task", 1024 * 3, NULL, LORA_PRIORITY, &lora_handle);
+    if (xTaskCreate(lora_task, "lora_task", 1024 * 3, NULL, LORA_PRIORITY, &lora_handle) != pdPASS) {
+        Serial.println(F("failed to create LoRa task!"));
+        lora_handle = NULL;
+        return false;
+    }
+    lora_ready = true;
     vTaskSuspend(lora_handle);
 
     return true;
@@ -172,6 +184,11 @@ bool lora_sx1262_init(void)
 
 void lora_set_mode(int mode) 
 {
+    if (!lora_ready) {
+        Serial.println(F("[LORA] module is not available."));
+        return;
+    }
+
     if(mode == LORA_MODE_SEND){
         radio.setPacketSentAction(set_transmit_flag);
         Serial.println(F("[LORA] Sending first packet ... "));
@@ -197,6 +214,10 @@ int lora_get_mode(void)
 
 void lora_receive_loop(void)
 {
+    if (!lora_ready) {
+        return;
+    }
+
     if(receivedFlag){
         receivedFlag = false;
 
@@ -224,6 +245,10 @@ void lora_receive_loop(void)
 
 void lora_transmit(const char *str)
 {
+    if (!lora_ready) {
+        return;
+    }
+
     if(transmittedFlag){
         transmittedFlag = false;
         if(transmissionState == RADIOLIB_ERR_NONE){
@@ -241,9 +266,9 @@ void lora_transmit(const char *str)
 
 bool lora_get_recv(const char **str, int *rssi)
 {
-    *str = lora_recv_data.c_str();
-    *rssi = lora_recv_rssi;
-    return lora_recv_success;
+    if (str) *str = lora_recv_data.c_str();
+    if (rssi) *rssi = lora_recv_rssi;
+    return lora_ready && lora_recv_success;
 }
 
 void lora_set_recv_flag(void)
@@ -253,35 +278,46 @@ void lora_set_recv_flag(void)
 
 void lora_sleep(void)
 {
-    radio.sleep();
+    if (lora_ready) {
+        radio.sleep();
+    }
 }
 
 void lora_recv_suspend(void)
 {
-    vTaskSuspend(lora_handle);
+    if (lora_handle != NULL) {
+        vTaskSuspend(lora_handle);
+    }
 }
 void lora_recv_resume(void)
 {
-    vTaskResume(lora_handle);
+    if (lora_handle != NULL) {
+        vTaskResume(lora_handle);
+    }
 }
 
 void lora_param_set(void)
 {
+    if (!lora_ready) {
+        Serial.println(F("[LORA] module is not available."));
+        return;
+    }
+
     // set carrier frequency to 433.5 MHz
     if (radio.setFrequency(ui_lora_get_freq()) == RADIOLIB_ERR_INVALID_FREQUENCY) {
         Serial.println(F("Selected frequency is invalid for this module!"));
-        while (true);
+        return;
     }
 
     // set bandwidth to 250 kHz
     if (radio.setBandwidth(ui_lora_get_bandwidth()) == RADIOLIB_ERR_INVALID_BANDWIDTH) {
         Serial.println(F("Selected bandwidth is invalid for this module!"));
-        while (true);
+        return;
     }
 
     // set output power to 10 dBm (accepted range is -17 - 22 dBm)
     if (radio.setOutputPower(ui_lora_get_power()) == RADIOLIB_ERR_INVALID_OUTPUT_POWER) {
         Serial.println(F("Selected output power is invalid for this module!"));
-        while (true);
+        return;
     }
 }

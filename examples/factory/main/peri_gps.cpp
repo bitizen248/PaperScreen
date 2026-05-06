@@ -10,23 +10,28 @@ static bool GPS_Recovery();
 bool setupGPS();
 void displayInfo();
 
-static TaskHandle_t gps_handle;
+static TaskHandle_t gps_handle = NULL;
 static double gps_lat=0, gps_lng=0, gps_altitude=0, gps_speed=0;
 static uint16_t gps_year=0;
 static uint8_t gps_month=0, gps_day=0;
 static uint8_t gps_hour=0, gps_minute=0, gps_second=0;
 static uint32_t gps_vsat=0;
+static bool gps_ready = false;
 
 uint8_t buffer[256];
 
 bool gps_init(void)
 {   
     bool result = false;
+    gps_ready = false;
+    gps_handle = NULL;
+
     // L76K GPS USE 9600 BAUDRATE
     result = setupGPS();
     if(!result) {
         // Set u-blox m10q gps baudrate 38400
         SerialGPS.begin(38400, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+        SerialGPS.setTimeout(10);
         result = GPS_Recovery();
         if (!result) {
             SerialGPS.updateBaudRate(9600);
@@ -42,6 +47,9 @@ bool gps_init(void)
     if(result) {
         Serial.println("GPS Task Create...!");
         gps_task_create();
+        result = (gps_handle != NULL);
+    } else {
+        SerialGPS.end();
     }
     return result;
 }
@@ -72,23 +80,38 @@ void gps_task(void *param)
 
 void gps_task_create(void)
 {
-    xTaskCreate(gps_task, "gps_task", 1024 * 3, NULL, GPS_PRIORITY, &gps_handle);
+    if (gps_handle != NULL) {
+        return;
+    }
+
+    if (xTaskCreate(gps_task, "gps_task", 1024 * 3, NULL, GPS_PRIORITY, &gps_handle) != pdPASS) {
+        Serial.println("GPS task create failed!");
+        gps_handle = NULL;
+        gps_ready = false;
+        return;
+    }
+
+    gps_ready = true;
     vTaskSuspend(gps_handle);
 }
 
 uint32_t gps_get_charsProcessed(void)
 {
-    return gps.charsProcessed();
+    return gps_ready ? gps.charsProcessed() : 0;
 }
 
 void gps_task_suspend(void)
 {
-    vTaskSuspend(gps_handle);
+    if (gps_handle != NULL) {
+        vTaskSuspend(gps_handle);
+    }
 }
 
 void gps_task_resume(void)
 {
-    vTaskResume(gps_handle);
+    if (gps_handle != NULL) {
+        vTaskResume(gps_handle);
+    }
 }
 
 void gps_get_coord(double *lat, double *lng)
@@ -204,6 +227,7 @@ bool setupGPS()
 {
     // L76K GPS USE 9600 BAUDRATE
     SerialGPS.begin(9600, SERIAL_8N1, BOARD_GPS_RXD, BOARD_GPS_TXD);
+    SerialGPS.setTimeout(10);
     bool result = false;
     uint32_t startTimeout ;
     for (int i = 0; i < 3; ++i) {
@@ -219,6 +243,7 @@ bool setupGPS()
                 Serial.println("Wait L76K stop NMEA timeout!");
                 return false;
             }
+            delay(1);
         };
         Serial.println();
         SerialGPS.flush();
@@ -232,8 +257,8 @@ bool setupGPS()
                 Serial.println("Get L76K timeout!");
                 return false;
             }
+            delay(1);
         }
-        SerialGPS.setTimeout(10);
         ver = SerialGPS.readStringUntil('\n');
         if (ver.startsWith("$GPTXT,01,01,02")) {
             Serial.println("L76K GNSS init succeeded, using L76K GNSS Module\n");
@@ -312,7 +337,9 @@ static int getAck(uint8_t *buffer, uint16_t size, uint8_t requestedClass, uint8_
             default:
                 break;
             }
+            delay(1);
         }
+        delay(1);
     }
     return 0;
 }
