@@ -1,6 +1,10 @@
 
 <h1 align = "center">🏆T5_E_Paper_S3_Pro🏆</h1>
 
+<p align="center">
+  <b>English</b> | <a href="./README_CN.md">中文</a>
+</p>
+
 
 ![Build Status](https://github.com/Xinyuan-LilyGO/T5S3-4.7-e-paper-PRO/actions/workflows/platformio.yml/badge.svg?event=push)
 
