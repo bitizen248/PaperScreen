@@ -55,7 +55,7 @@ Before downloading the program, connect the device to your computer, select the 
 
 ![alt text](./docs/flash_download_tool/image.png)
 
-### 1. Use `LILYGO Spark` to download the program
+### 2.1. Use `LILYGO Spark` to download the program (Recommendation)
 
 - Download the software from [LILYGO Spark](https://lilygo.cc/en-us/pages/lilygo-spark?srsltid=AfmBOoorTB7ptFu2LQNLRnoI2SA0zBGJTN6JpI9J3hmHEkKhBQSmeu0Y)
 
@@ -63,7 +63,18 @@ Before downloading the program, connect the device to your computer, select the 
 
 ![alt text](./docs/README_img/lilygo_spark.png)
 
-### 2. Use ESP official `flash_download_tool` to download the program
+examples:
+
+| Firmware                        | Note                | Github                                                        |
+| ------------------------------- | ------------------- | ------------------------------------------------------------- |
+| T5_E_PAPER_S3_PRO_V1.0_20260506 | Factory program<br> | -                                                             |
+| corsspoint_lilygo_t5s3_e_paper  | Reader program      | [t5s3-reader](https://github.com/ShallowGreen123/t5s3-reader) |
+
+
+
+### 2.2. Use ESP official `flash_download_tool` to download the program
+
+The demonstration examples are located in the `examples/factory` folder under the `firmware/` directory.
 
 Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.md)
 
@@ -71,7 +82,7 @@ Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.m
 
 🟢 PlatformIO is recommended because these examples were developed on it. 🟢 
 
-### 1、PlatformIO
+### 3.1. PlatformIO
 
 1. Install [Visual Studio Code](https://code.visualstudio.com/) and [Python](https://www.python.org/), and clone or download the project;
 2. Search for the `PlatformIO` plugin in the `VisualStudioCode` extension and install it;
@@ -81,7 +92,7 @@ Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.m
 6. Click :ballot_box_with_check: under VScode to compile the project, then plug in USB and select COM under VScode;
 7. Finally, click the :arrow_right:  button to download the program to Flash;
 
-### 2、Arduino IDE
+### 3.2. Arduino IDE
 
 1. Install [Arduino IDE](https://www.arduino.cc/en/software)
 
@@ -112,7 +123,7 @@ Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.m
 | USB Mode                             | **CDC and JTAG**                   |
 
 
-### 3、Folder structure
+### 3.3. Folder structure
 
 ~~~
 ├─boards      : Board configuration files for PlatformIO;
@@ -124,7 +135,7 @@ Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.m
 ├─lib         : Third-party libraries used in the project;
 ~~~
 
-### 4、Examples
+### 3.4. Examples
 
 | Example | Path | Description |
 |:------- |:---- |:---------- |
@@ -142,91 +153,14 @@ Reference [flash_download_tool](./docs/flash_download_tool/flash_download_tool.m
 
 ## :four: Pins 🎁
 
-~~~c
-// BOARD PIN DEFINE
-#define BOARD_GPS_RXD       44
-#define BOARD_GPS_TXD       43
-#define SerialMon           Serial
-#define SerialGPS           Serial2
+### 4.1 Pin mapping
 
-#define BOARD_I2C_PORT      (0)
-#define BOARD_SCL           (40)
-#define BOARD_SDA           (39)
+[./docs/pinmap.md](./docs/pinmap.md)
 
-#define BOARD_SPI_MISO      (21)
-#define BOARD_SPI_MOSI      (13)
-#define BOARD_SPI_SCLK      (14)
+### 4.2 Pin definition
 
-#define BOARD_TOUCH_SCL     (BOARD_SCL)
-#define BOARD_TOUCH_SDA     (BOARD_SDA)
-#define BOARD_TOUCH_INT     (3)
-#define BOARD_TOUCH_RST     (9)
+[./docs/pin_define.md](./docs/pin_define.md)
 
-#define BOARD_RTC_SCL       (BOARD_SCL)
-#define BOARD_RTC_SDA       (BOARD_SDA)
-#define BOARD_RTC_IRQ       (2)
-
-#define BOARD_SD_MISO       (BOARD_SPI_MISO)
-#define BOARD_SD_MOSI       (BOARD_SPI_MOSI)
-#define BOARD_SD_SCLK       (BOARD_SPI_SCLK)
-#define BOARD_SD_CS         (12)
-
-#define BOARD_LORA_MISO     (BOARD_SPI_MISO)
-#define BOARD_LORA_MOSI     (BOARD_SPI_MOSI)
-#define BOARD_LORA_SCLK     (BOARD_SPI_SCLK)
-#define BOARD_LORA_CS       (46)
-#define BOARD_LORA_IRQ      (10)
-#define BOARD_LORA_RST      (1)
-#define BOARD_LORA_BUSY     (47)
-
-#define BOARD_BL_EN         (11)
-#define BOARD_PCA9535_INT   (38)
-#define BOARD_BOOT_BTN      (0)
-
-// ED047TC1 --- e-ink paper
-#define EP_SCL             (40)
-#define EP_SDA             (39)
-#define EP_INTR            (38)
-#define EP_I2C_PORT      I2C_NUM_0
-
-#define EP_D7              (8)
-#define EP_D6              (18)
-#define EP_D5              (17)
-#define EP_D4              (16)
-#define EP_D3              (15)
-#define EP_D2              (7)
-#define EP_D1              (6)
-#define EP_D0              (5)
-#define EP_CKV             (48) /* Control Lines */
-#define EP_STH             (41)
-#define EP_LEH             (42)
-#define EP_STV             (45)
-#define EP_CKH             (4)   /* Edges */
-
-// PCA9535
-// Extend the interface and set the read/write ports via I2C.
-// IO1X
-#define PCA9535_IO10_EP_OE          // EP Output enable source driver
-#define PCA9535_IO11_EP_MODE        // EP Output mode selection gate driver
-#define PCA9535_IO12_BUTTON
-#define PCA9535_IO13_TPS_PWRUP
-#define PCA9535_IO14_VCOM_CTRL
-#define PCA9535_IO15_TPS_WAKEUP
-#define PCA9535_IO16_TPS_PWR_GOOD
-#define PCA9535_IO17_TPS_INT
-// IO0X
-#define PCA9535_IO00
-#define PCA9535_IO01
-#define PCA9535_IO02
-#define PCA9535_IO03
-#define PCA9535_IO04
-#define PCA9535_IO05
-#define PCA9535_IO06
-#define PCA9535_IO07
-
-~~~
-
-### Extension interface
 
 ## :five: Test 🎁
 
