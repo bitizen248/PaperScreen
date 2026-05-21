@@ -8,7 +8,8 @@
 *build
 *.lock
 script/
-docs/image_source/
-examples/factory_ft5536/
-examples/touch_ft5536/
 other/
+examples/FastEPD_factory/
+examples/sx1262_recv_mic_fcc/
+examples/sx1262_send_mic_fcc/
+debug.md
