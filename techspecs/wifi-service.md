@@ -247,6 +247,18 @@ if (settings_.wifi_settings().disconnect_after_network_task) {
 
 TRMNL should use `wifi_.rssi()` for optional request headers, but Wi-Fi should not know about TRMNL.
 
+## Integration With Backend Sync
+
+Backend sync is specified in `techspecs/backend-sync.md`.
+
+`SyncService` should use `WifiService` for connection lifecycle:
+- connect on manual sync, scheduled sync, or wake-driven sync
+- push local outbox changes
+- pull backend changes
+- disconnect when the configured network task policy requires it
+
+`WifiService` must not know about backend endpoints, device tokens, sync cursors, or external app connectors.
+
 ## Integration With Settings App
 
 Settings should expose Wi-Fi as a top-level item:

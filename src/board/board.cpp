@@ -125,7 +125,60 @@ void Board::clear_function_button_interrupt() const
     pca9555_read_input(kI2cPort, 1);
 }
 
-TouchPoint Board::touch_point()
+void Board::poll_input()
+{
+    const TouchPoint point = read_touch_point();
+    if (point.pressed) {
+        if (!touch_pressed_) {
+            touch_pressed_ = true;
+            last_touch_ = point;
+            push_input_event(BoardInputEventType::TouchDown, point);
+            return;
+        }
+
+        if (point.x != last_touch_.x || point.y != last_touch_.y) {
+            last_touch_ = point;
+            push_input_event(BoardInputEventType::TouchMove, point);
+        }
+        return;
+    }
+
+    if (!touch_pressed_) {
+        return;
+    }
+
+    touch_pressed_ = false;
+    TouchPoint released = last_touch_;
+    released.pressed = false;
+    push_input_event(BoardInputEventType::TouchUp, released);
+}
+
+bool Board::next_input_event(BoardInputEvent& event)
+{
+    if (input_queue_head_ == input_queue_tail_) {
+        event = {};
+        return false;
+    }
+
+    event = input_queue_[input_queue_tail_];
+    input_queue_tail_ = (input_queue_tail_ + 1) % kInputQueueSize;
+    return true;
+}
+
+void Board::push_input_event(BoardInputEventType type, TouchPoint touch)
+{
+    const uint8_t next_head = (input_queue_head_ + 1) % kInputQueueSize;
+    if (next_head == input_queue_tail_) {
+        Serial.println("[board] input queue full; dropping oldest event");
+        input_queue_tail_ = (input_queue_tail_ + 1) % kInputQueueSize;
+    }
+
+    input_queue_[input_queue_head_].type = type;
+    input_queue_[input_queue_head_].touch = touch;
+    input_queue_head_ = next_head;
+}
+
+TouchPoint Board::read_touch_point()
 {
     TouchPoint point;
     if (!status_.touch_initialized || !touch_.isPressed()) {
@@ -142,6 +195,12 @@ TouchPoint Board::touch_point()
     point.y = y;
     point.pressed = true;
     return point;
+}
+
+void Board::set_backlight_enabled(bool enabled)
+{
+    digitalWrite(kBoardBacklightEnable, enabled ? HIGH : LOW);
+    Serial.printf("[board] backlight %s\n", enabled ? "on" : "off");
 }
 
 void Board::poll_power_button_diagnostics()

@@ -8,7 +8,7 @@ enum class AppIcon {
     Tasks,
     Reader,
     Focus,
-    Desk,
+    Trmnl,
     Settings,
     Sync,
     Notes,

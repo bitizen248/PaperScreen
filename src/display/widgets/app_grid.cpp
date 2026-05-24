@@ -58,7 +58,7 @@ void draw_icon(DisplayRenderContext ctx, AppIcon icon, EpdRect rect)
         epd_draw_line(cx, cy, cx, cy - 22, kBlack, ctx.framebuffer);
         epd_draw_line(cx, cy, cx + 18, cy + 12, kBlack, ctx.framebuffer);
         break;
-    case AppIcon::Desk:
+    case AppIcon::Trmnl:
         epd_draw_rect({cx - 40, cy - 28, 80, 56}, kBlack, ctx.framebuffer);
         epd_draw_line(cx - 14, cy - 28, cx - 14, cy + 28, kBlack, ctx.framebuffer);
         epd_draw_line(cx + 14, cy - 28, cx + 14, cy + 28, kBlack, ctx.framebuffer);

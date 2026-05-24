@@ -10,7 +10,7 @@ const AppTileViewModel kHomeApps[] = {
     {"Tasks", AppIcon::Tasks},
     {"Reader", AppIcon::Reader},
     {"Focus", AppIcon::Focus},
-    {"Desk", AppIcon::Desk},
+    {"TRMNL", AppIcon::Trmnl},
     {"Settings", AppIcon::Settings},
     {"Sync", AppIcon::Sync},
     {"Notes", AppIcon::Notes},
@@ -28,8 +28,8 @@ const char* app_icon_label(AppIcon icon)
         return "Reader";
     case AppIcon::Focus:
         return "Focus";
-    case AppIcon::Desk:
-        return "Desk";
+    case AppIcon::Trmnl:
+        return "TRMNL";
     case AppIcon::Settings:
         return "Settings";
     case AppIcon::Sync:
