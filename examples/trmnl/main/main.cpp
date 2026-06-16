@@ -42,8 +42,8 @@ static EpdiyHighlevelState s_hl;
 
 // ── RTC state – persists across deep-sleep cycles, cleared on power-off ───────
 RTC_DATA_ATTR static int      s_retry_count     = 0;
-RTC_DATA_ATTR static uint8_t  s_du_counter      = 0;   // fast-refresh cycle counter
-RTC_DATA_ATTR static uint8_t  s_gl_counter      = 0;   // GL16 cycle counter
+RTC_DATA_ATTR static uint16_t s_du_counter      = 0;   // fast-refresh cycle counter
+RTC_DATA_ATTR static uint16_t s_gl_counter      = 0;   // GL16 cycle counter
 RTC_DATA_ATTR static char     s_prev_filename[128] = "";
 
 // ── Buffers ───────────────────────────────────────────────────────────────────
@@ -218,8 +218,13 @@ static bool cache_load(const char *expected_filename, uint8_t **out_buf, size_t 
 
     uint8_t *buf = (uint8_t *)heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
     if (!buf) { img.close(); return false; }
-    img.read(buf, sz);
+    size_t got = img.read(buf, sz);
     img.close();
+    if (got != sz) {
+        ESP_LOGE(TAG, "Cache read short %zu/%zu", got, sz);
+        heap_caps_free(buf);
+        return false;
+    }
 
     *out_buf = buf;
     *out_len = sz;
@@ -232,7 +237,15 @@ static void cache_save(const char *filename, const uint8_t *buf, size_t len)
     if (!LittleFS.begin(true)) return;
 
     File img = LittleFS.open(CACHE_IMG, "w");
-    if (img) { img.write(buf, len); img.close(); }
+    if (img) {
+        if (img.write(buf, len) != len) {
+            ESP_LOGE(TAG, "Cache write short – evicting");
+            img.close();
+            LittleFS.remove(CACHE_IMG);
+            return;
+        }
+        img.close();
+    }
 
     File nf = LittleFS.open(CACHE_NAME, "w");
     if (nf) { nf.print(filename); nf.close(); }
@@ -254,6 +267,7 @@ static void display_init()
     int w = epd_rotated_display_width();
     int h = epd_rotated_display_height();
     s_decode_buf = (uint8_t *)heap_caps_calloc(((size_t)(w + 1) / 2) * (size_t)h, 1, MALLOC_CAP_SPIRAM);
+    if (!s_decode_buf) { ESP_LOGE(TAG, "PSRAM alloc failed"); abort(); }
     ESP_LOGI(TAG, "EPD %dx%d", w, h);
 }
 
@@ -405,7 +419,7 @@ static bool fetch_api(ApiResp &r)
     jint(js, "status", &v);          r.status = v;
     v = TRMNL_DEFAULT_REFRESH_SEC;
     jint(js, "refresh_rate", &v);    r.refresh_rate = (uint32_t)v;
-    v = TRMNL_IMAGE_DOWNLOAD_TIMEOUT_MS;
+    v = TRMNL_IMAGE_DOWNLOAD_TIMEOUT_MS / 1000;  // server sends seconds; default must also be seconds
     jint(js, "image_url_timeout", &v); r.img_timeout_ms = (uint32_t)(v * 1000);
 
     r.update_firmware = jbool(js, "update_firmware");
@@ -503,6 +517,10 @@ static void perform_ota(const char *url)
     }
 
     WiFiClient *stream = http.getStreamPtr();
+    if (!stream) {
+        ESP_LOGE(TAG, "OTA: null stream");
+        http.end(); return;
+    }
     size_t written = Update.writeStream(*stream);
     http.end();
 
@@ -633,14 +651,16 @@ void setup()
             fail_and_sleep("Image download failed");
             return;
         }
-        // Persist to LittleFS so the next boot can skip re-downloading
-        if (api.filename[0] != '\0') {
-            cache_save(api.filename, s_img_buf, s_img_buf_len);
-        }
     }
 
     // ── 9. Decode into framebuffer (display is NOT touched yet) ───────────────
     bool decoded = decode_image(s_img_buf, s_img_buf_len);
+
+    // Cache only after a successful decode – a bad image must never enter the cache.
+    if (decoded && !from_cache && api.filename[0] != '\0') {
+        cache_save(api.filename, s_img_buf, s_img_buf_len);
+    }
+
     heap_caps_free(s_img_buf);
     s_img_buf = nullptr;
 
