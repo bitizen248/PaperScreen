@@ -6,9 +6,10 @@
 
 #include "sdk/app.h"
 
+class EpubReader;
+
 namespace paper_screen {
 
-class EpubReader;
 class PaperScreenEpubRenderer;
 
 enum class ReaderView : uint8_t {
