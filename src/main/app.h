@@ -5,6 +5,7 @@
 #include "services/power_service.h"
 #include "services/settings_service.h"
 #include "services/trmnl_service.h"
+#include "services/wallpaper_service.h"
 #include "services/wifi_service.h"
 #include "ui/home_screen.h"
 #include "ui/lock_screen.h"
@@ -51,6 +52,7 @@ private:
     void handle_settings_action(SettingRowAction action);
     void update_settings_screen();
     void refresh_trmnl(bool full_refresh);
+    void generate_wallpaper();
     void render_home();
     void render_home_content();
     void render_current_app(bool preserve_status_bar);
@@ -64,6 +66,7 @@ private:
     SettingsService settings_;
     WifiService wifi_;
     TrmnlService trmnl_;
+    WallpaperService wallpaper_;
     HomeScreen home_;
     SettingsScreen settings_screen_;
     TrmnlScreen trmnl_screen_;

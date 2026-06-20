@@ -75,6 +75,9 @@ void SettingsScreen::set_state(const SettingsService& settings, const WifiSettin
     add_row("Mode", trmnl_mode_label(settings.trmnl_mode()), SettingRowAction::ToggleTrmnlMode);
     add_row("API Key", settings.trmnl_api_key_configured() ? "Set" : "Missing");
     add_row("Ready", yes_no(trmnl_ready));
+
+    add_row("Wallpaper", "", SettingRowAction::None, false);
+    add_row("Home background", "Regenerate", SettingRowAction::RegenerateWallpaper);
 }
 
 SettingsViewModel SettingsScreen::view_model() const

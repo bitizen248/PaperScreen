@@ -32,6 +32,17 @@ void draw_text(
 
 }  // namespace
 
+uint8_t quantize_gray4(uint8_t luma)
+{
+    if (luma >= 248U) {
+        return 0xFF;
+    }
+
+    const uint8_t darkened = static_cast<uint8_t>((static_cast<uint16_t>(luma) * luma + 127U) / 255U);
+    const uint8_t level = static_cast<uint8_t>((static_cast<uint16_t>(darkened) * 15U + 127U) / 255U);
+    return static_cast<uint8_t>(level * 17U);
+}
+
 void draw_text_12(DisplayRenderContext ctx, const char* text, int x, int y, EpdFontFlags flags)
 {
     draw_text(ctx, &FiraSans_12, text, x, y, flags, kBlack, kWhite);
