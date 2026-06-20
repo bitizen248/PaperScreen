@@ -251,7 +251,7 @@ Storage failures should not trigger full-screen refresh loops. Use one stable st
 
 ### Phase 1: Board Storage Bring-Up
 
-Status: planned.
+Status: initial implementation added.
 
 - Add `board_storage`.
 - Mount SD using the known-good LilyGO example pins.
@@ -265,7 +265,7 @@ Done when:
 
 ### Phase 2: Storage Service
 
-Status: planned.
+Status: initial implementation added.
 
 - Add `StorageService`.
 - Create the directory layout lazily.
@@ -275,6 +275,12 @@ Status: planned.
 
 Done when:
 - Services can use storage without including `SD.h` or `SPI.h`.
+
+Current notes:
+- `BoardStorage` mounts the card over shared SPI and reports card type/capacity.
+- `StorageService` creates the first `/paperscreen/` directory layout and app directories.
+- Boot appends a simple `/paperscreen/logs/boot.jsonl` entry when storage is mounted.
+- Settings UI status is still pending.
 
 ### Phase 3: TRMNL Persistent Cache
 

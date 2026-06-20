@@ -1,4 +1,7 @@
 .pio
+.idea/
+.DS_Store
+**/.DS_Store
 .vscode/.browse.c_cpp.db*
 .vscode/c_cpp_properties.json
 .vscode/launch.json
@@ -13,3 +16,8 @@ examples/FastEPD_factory/
 examples/sx1262_recv_mic_fcc/
 examples/sx1262_send_mic_fcc/
 debug.md
+
+# Local secrets (never commit)
+*.local.sh
+*.local.ini
+trmnl_key.local.sh

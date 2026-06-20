@@ -56,31 +56,38 @@ Current behavior:
 - Settings can switch between Playlist and Mirror mode.
 - Firmware fetches TRMNL metadata JSON.
 - Firmware downloads the returned PNG from `image_url`.
+- Firmware targets the official TRMNL cloud API at `https://trmnl.com`.
+- Metadata and image download requests include `ID`, `Access-Token`, `Refresh-Rate`, `Battery-Voltage`, `FW-Version`, `RSSI`, `Width`, and `Height` headers where available.
 - Firmware decodes PNG to RGBA through LVGL/lodepng.
 - Firmware renders to the 960x540 epdiy framebuffer in landscape.
 - PNGs are rendered at native size when they fit the panel, centered with white margins.
 - Larger PNGs are contained to fit the panel while preserving aspect ratio.
 - 4-bit grayscale framebuffer output is used.
 - Non-white pixels are darkened before quantization to improve e-paper contrast.
+- TRMNL image renders use a thorough refresh path: physical white clear,
+  full grayscale image update, then a second grayscale settle update for lower
+  ghosting and stronger contrast.
 - TRMNL mode keeps Wi-Fi connected while the user remains in TRMNL mode.
 - Non-TRMNL network tasks still respect the normal disconnect-after-task setting.
 - Manual refresh reuses the cached image buffer when metadata returns the same `image_url`.
 - Existing content shows a small `UPDATING` overlay while refresh is in progress.
-- Double Home tap opens a TRMNL menu.
+- Home button opens a TRMNL menu.
 - Another Home press closes the menu.
-- Menu actions are Refresh, Switch light, Return home, and Cancel.
-- Side swipe controls backlight in TRMNL mode.
+- Menu actions are Next screen, Refetch current, Special button, Switch light, Return home, and Cancel.
+- Display-right swipe advances to the next playlist screen.
+- Display-up/down swipe controls backlight in TRMNL mode.
+- Successful images and metadata are saved as a last-good cache under the TRMNL app directory.
+- If a live fetch fails, firmware attempts to render the cached last-good image and schedules the next retry from cached/fallback cadence.
 
 Current limitations:
-- API key and Terminus base URL are development-time constants, not user-provisioned.
-- Refresh rate from the backend is parsed but not yet scheduled automatically.
+- API key is supplied at build time with `PAPER_SCREEN_TRMNL_API_KEY`; runtime provisioning is not implemented yet.
+- Refresh rate from the backend is parsed and used for foreground automatic refresh.
 - Playlist mode only means "call `/api/display`"; there is no local playlist state.
 - Mirror mode only means "call `/api/current_screen`".
-- There is no microSD-backed persistent image cache yet.
-- There is no RTC/deep-sleep refresh scheduling yet.
+- Autonomous desk mode uses ESP32 timer wake from deep sleep, then re-enters TRMNL and fetches again while the battery gauge reports charging or full.
 - Firmware update/reset fields from TRMNL responses are ignored.
 - Only PNG is supported.
-- Image URLs are currently logged for debugging and should be redacted before release.
+- Full image URLs are redacted in normal serial logs; image URL hashes may be logged for diagnostics.
 
 ## Terminus Screen Model
 
@@ -129,7 +136,7 @@ Playlist mode:
 
 ```http
 GET /api/display HTTP/1.1
-Host: <terminus-base-url>
+Host: trmnl.com
 access-token: <api_key>
 ID: <wifi-mac-address>
 ```
@@ -138,7 +145,7 @@ Mirror mode:
 
 ```http
 GET /api/current_screen HTTP/1.1
-Host: <terminus-base-url>
+Host: trmnl.com
 access-token: <api_key>
 ID: <wifi-mac-address>
 ```
@@ -173,12 +180,12 @@ Needed behavior:
 - Terminus should know the PaperScreen model and render exactly for `960x540`, 4-bit grayscale PNG.
 - Playlist mode should advance according to backend playlist rules.
 - Mirror mode should remain available for development and diagnostics.
-- Firmware should schedule the next refresh from backend `refresh_rate`.
+- Firmware schedules the next foreground refresh from backend `refresh_rate`.
 - Manual refresh should be allowed but should not permanently override backend cadence.
 - If backend returns the same `image_url`, firmware should keep the current image and avoid re-downloading.
 - If backend returns a new `image_url`, firmware should download and render it.
 - Wi-Fi should stay connected while actively in TRMNL foreground mode.
-- In future autonomous desk mode, Wi-Fi should disconnect between scheduled refreshes.
+- In autonomous desk mode, Wi-Fi disconnects between scheduled refreshes.
 - Last successful image should survive failed refreshes.
 
 Backend/Terminus requirements:
@@ -203,40 +210,44 @@ Firmware requirements:
   - fallback refresh seconds
   - foreground Wi-Fi behavior
   - autonomous/sleep behavior
-- Track next refresh due time from `refresh_rate`.
-- Add automatic refresh in TRMNL mode.
-- Add persistent last-image cache.
-- Redact API key and sensitive image URLs in logs.
+- Track next refresh due time from `refresh_rate`. Implemented for foreground TRMNL mode.
+- Add automatic refresh in TRMNL mode. Implemented.
+- Persistent last-image cache is implemented for successful PNG responses and failed-fetch fallback rendering.
+- Keep API keys and sensitive image URLs out of logs.
 - Keep TRMNL fetch logic inside `TrmnlService`.
 - Keep display decode/render logic inside `ImageRenderer`/`Display`.
 
 ## Refresh Policy
 
 Current:
-- Refresh is manual.
-- Single Home tap schedules a manual refresh after the double-tap window.
-- Menu Refresh triggers refresh immediately.
-- Backend `refresh_rate` is parsed but not used by the app loop yet.
+- Refresh runs automatically in TRMNL foreground mode after a successful response.
+- Menu Next screen calls `/api/display` immediately.
+- Menu Refetch current calls `/api/current_screen` immediately.
+- Backend `refresh_rate` is parsed and used by the app loop.
+- Successful live responses log and schedule the next image refresh from `response.refresh_seconds`.
 
 Target foreground behavior:
 
 ```text
 Enter TRMNL
   -> fetch metadata/image
-  -> render image
-  -> next_refresh_due = now + response.refresh_seconds
+  -> render image, or render last-good cached image if live fetch fails
+  -> next_refresh_due = now + response.refresh_seconds for live success
+  -> next_refresh_due = now + cached/fallback refresh seconds after cached fallback
   -> keep Wi-Fi connected while TRMNL is foreground
   -> when due, show UPDATING overlay and refresh
 ```
 
-Target autonomous behavior:
+Current autonomous behavior:
 
 ```text
-Enter Desk/TRMNL autonomous mode
+Enable TRMNL Desk on charge
+  -> Place device on charger
+  -> Enter TRMNL or wake from scheduled timer
   -> fetch metadata/image
-  -> render image
-  -> persist image and metadata
-  -> schedule RTC wake at now + response.refresh_seconds
+  -> render image, or render last-good cached image if live fetch fails
+  -> schedule ESP32 timer wake at now + response.refresh_seconds for live success
+  -> use cached/fallback refresh seconds if live fetch failed but cache rendered
   -> disconnect Wi-Fi
   -> sleep
 ```
@@ -244,7 +255,13 @@ Enter Desk/TRMNL autonomous mode
 Refresh constraints:
 - Enforce a minimum refresh interval, currently 300 seconds.
 - Use local fallback, currently 1800 seconds, when backend value is missing or invalid.
-- Manual refresh should be rate-limited later if it causes playlist churn.
+- Manual next/refetch actions are cooldown-limited to avoid accidental repeated playlist churn.
+- The TRMNL menu includes a special-function action. It sends the official
+  `special_function: true` request header to `/api/display`; when the device's
+  TRMNL web settings configure Special Function as Restart Playlist, this acts
+  as a replay-from-top control.
+- RTC alarm wake is still a future board-level enhancement; current autonomous sleep uses ESP32 timer wake plus the existing button wake.
+- Desk mode is armed by the TRMNL setting but only active when the battery status is charging or full.
 
 ## Image Pipeline
 
@@ -274,11 +291,11 @@ Rendering policy:
 ## UI Contract
 
 TRMNL foreground controls:
-- Single Home tap: refresh after double-tap window.
-- Double Home tap: open menu.
+- Home button: open menu.
 - Home while menu is open: close menu.
 - Menu:
   - Refresh
+  - Special button
   - Switch light
   - Return home
   - Cancel

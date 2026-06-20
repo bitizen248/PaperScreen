@@ -15,7 +15,9 @@ namespace paper_screen {
 
 enum class TrmnlMenuAction : uint8_t {
     None,
-    Refresh,
+    NextScreen,
+    RefetchCurrent,
+    SpecialFunction,
     ToggleLight,
     ReturnHome,
     Cancel,
@@ -36,12 +38,14 @@ public:
     void render(const AppScreenViewModel& view_model);
     void render(const SettingsViewModel& view_model);
     void render(const TrmnlViewModel& view_model);
+    void render_status_bar_only(const StatusBarViewModel& view_model);
     void render_content(const HomeViewModel& view_model);
     void render_content(const AppScreenViewModel& view_model);
     void render_content(const SettingsViewModel& view_model);
     void render_content(const TrmnlViewModel& view_model);
     void render_dropdown();
     void render_trmnl_overlay(const char* label);
+    void render_trmnl_activity_overlay(TrmnlFetchStatus status, const char* battery);
     void render_trmnl_menu();
     int hit_test_home_app(const HomeViewModel& view_model, int x, int y) const;
     SettingRowAction hit_test_settings_action(const SettingsViewModel& view_model, int x, int y) const;
@@ -57,6 +61,7 @@ private:
     enum EpdDrawError update_area(EpdRect area, enum EpdDrawMode mode);
     void update_screen_logged(enum EpdDrawMode mode, const char* prefix);
     void clear_content_area(DisplayRenderContext ctx);
+    enum EpdDrawMode settings_content_mode() const;
 
     RefreshPolicy refresh_policy_ = RefreshPolicy::Conservative;
     bool initialized_ = false;

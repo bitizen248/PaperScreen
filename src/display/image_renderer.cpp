@@ -140,6 +140,13 @@ uint8_t rgba_luminance(const unsigned char* rgba, unsigned width, unsigned x, un
     return static_cast<uint8_t>((luma * a + 255U * (255U - a) + 127U) / 255U);
 }
 
+uint32_t fnv1a_mix(uint32_t hash, uint8_t value)
+{
+    hash ^= value;
+    hash *= 16777619UL;
+    return hash;
+}
+
 }  // namespace
 
 namespace paper_screen {
@@ -181,6 +188,37 @@ bool render_png_image(DisplayRenderContext ctx, const uint8_t* data, size_t size
     });
     free(rgba);
     return rendered;
+}
+
+uint32_t png_visual_hash(const uint8_t* data, size_t size)
+{
+    if (!is_png(data, size)) {
+        return 0;
+    }
+
+    unsigned char* rgba = nullptr;
+    unsigned width = 0;
+    unsigned height = 0;
+    const unsigned error = lodepng_decode_memory(&rgba, &width, &height, data, size, LCT_RGBA, 8);
+    if (error != 0 || rgba == nullptr || width == 0 || height == 0) {
+        free(rgba);
+        return 0;
+    }
+
+    constexpr unsigned kHashWidth = 48;
+    constexpr unsigned kHashHeight = 27;
+    uint32_t hash = 2166136261UL;
+    for (unsigned y = 0; y < kHashHeight; ++y) {
+        const unsigned src_y = (static_cast<uint64_t>(y) * height) / kHashHeight;
+        for (unsigned x = 0; x < kHashWidth; ++x) {
+            const unsigned src_x = (static_cast<uint64_t>(x) * width) / kHashWidth;
+            const uint8_t gray = rgba_luminance(rgba, width, src_x, src_y);
+            hash = fnv1a_mix(hash, static_cast<uint8_t>(gray / 16U));
+        }
+    }
+
+    free(rgba);
+    return hash == 0 ? 1 : hash;
 }
 
 }  // namespace paper_screen

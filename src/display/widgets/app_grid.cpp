@@ -76,6 +76,16 @@ void draw_icon(DisplayRenderContext ctx, AppIcon icon, EpdRect rect)
         epd_draw_line(cx + 38, cy + 16, cx - 28, cy + 16, kBlack, ctx.framebuffer);
         epd_draw_triangle(cx - 28, cy + 2, cx - 28, cy + 30, cx - 44, cy + 16, kBlack, ctx.framebuffer);
         break;
+    case AppIcon::Terrain:
+        epd_draw_line(cx - 46, cy - 20, cx - 22, cy - 34, kBlack, ctx.framebuffer);
+        epd_draw_line(cx - 22, cy - 34, cx + 12, cy - 22, kBlack, ctx.framebuffer);
+        epd_draw_line(cx + 12, cy - 22, cx + 44, cy - 34, kBlack, ctx.framebuffer);
+        epd_draw_line(cx - 48, cy - 2, cx - 20, cy - 12, kBlack, ctx.framebuffer);
+        epd_draw_line(cx - 20, cy - 12, cx + 14, cy - 4, kBlack, ctx.framebuffer);
+        epd_draw_line(cx + 14, cy - 4, cx + 48, cy - 16, kBlack, ctx.framebuffer);
+        epd_draw_line(cx - 42, cy + 18, cx - 8, cy + 8, kBlack, ctx.framebuffer);
+        epd_draw_line(cx - 8, cy + 8, cx + 34, cy + 20, kBlack, ctx.framebuffer);
+        break;
     case AppIcon::Notes:
         epd_draw_rect({cx - 30, cy - 34, 60, 68}, kBlack, ctx.framebuffer);
         epd_draw_line(cx - 18, cy - 12, cx + 18, cy - 12, kBlack, ctx.framebuffer);
@@ -84,34 +94,34 @@ void draw_icon(DisplayRenderContext ctx, AppIcon icon, EpdRect rect)
     }
 }
 
-void render_tile(DisplayRenderContext ctx, const AppTileViewModel& app, EpdRect rect)
+void render_tile(DisplayRenderContext ctx, const AppDescriptor& app, EpdRect rect)
 {
     epd_draw_rect(rect, kBlack, ctx.framebuffer);
     draw_icon(ctx, app.icon, rect);
-    draw_label_centered(ctx, app.label, {rect.x, rect.y + rect.height - 46, rect.width, 36});
+    draw_label_centered(ctx, app.name, {rect.x, rect.y + rect.height - 46, rect.width, 36});
 }
 
 }  // namespace
 
 void render_app_grid(DisplayRenderContext ctx, const HomeViewModel& model, int top)
 {
-    for (int i = 0; i < model.app_count; ++i) {
+    for (size_t i = 0; i < model.app_count; ++i) {
         if (i / kAppGridColumns >= kAppGridRows) {
             break;
         }
-        EpdRect tile = app_tile_rect(ctx.width, ctx.height, top, i);
+        EpdRect tile = app_tile_rect(ctx.width, ctx.height, top, static_cast<int>(i));
         render_tile(ctx, model.apps[i], tile);
     }
 }
 
 int app_grid_hit_test(const HomeViewModel& model, int width, int height, int top, int x, int y)
 {
-    for (int i = 0; i < model.app_count; ++i) {
+    for (size_t i = 0; i < model.app_count; ++i) {
         if (i / kAppGridColumns >= kAppGridRows) {
             break;
         }
-        if (contains(app_tile_rect(width, height, top, i), x, y)) {
-            return i;
+        if (contains(app_tile_rect(width, height, top, static_cast<int>(i)), x, y)) {
+            return static_cast<int>(i);
         }
     }
 

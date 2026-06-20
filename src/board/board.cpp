@@ -15,6 +15,8 @@ constexpr int kBoardScl = 40;
 constexpr int kSpiSclk = 14;
 constexpr int kSpiMiso = 21;
 constexpr int kSpiMosi = 13;
+constexpr int kSdCs = 12;
+constexpr int kLoraCs = 46;
 constexpr int kBoardBacklightEnable = 11;
 constexpr int kBootButton = 0;
 constexpr int kRtcInterrupt = 2;
@@ -59,6 +61,12 @@ BoardStatus Board::begin()
     Wire.begin(kBoardSda, kBoardScl);
 
     log_i2c_devices();
+
+    Serial.printf("[board] shared spi cs idle sd=%d lora=%d\n", kSdCs, kLoraCs);
+    pinMode(kSdCs, OUTPUT);
+    digitalWrite(kSdCs, HIGH);
+    pinMode(kLoraCs, OUTPUT);
+    digitalWrite(kLoraCs, HIGH);
 
     Serial.printf("[board] spi begin sclk=%d miso=%d mosi=%d\n", kSpiSclk, kSpiMiso, kSpiMosi);
     SPI.begin(kSpiSclk, kSpiMiso, kSpiMosi);
