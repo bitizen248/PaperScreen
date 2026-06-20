@@ -1,3 +1,0 @@
-[submodule "lib/diy-esp32-epub-reader"]
-	path = lib/diy-esp32-epub-reader
-	url = https://github.com/atomic14/diy-esp32-epub-reader.git
