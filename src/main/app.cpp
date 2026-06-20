@@ -99,10 +99,26 @@ void App::setup()
     Serial.begin(115200);
     delay(50);
 
+    const esp_reset_reason_t reset_reason = esp_reset_reason();
+    const bool abnormal_reset = reset_reason == ESP_RST_PANIC || reset_reason == ESP_RST_INT_WDT
+        || reset_reason == ESP_RST_TASK_WDT || reset_reason == ESP_RST_WDT
+        || reset_reason == ESP_RST_BROWNOUT;
+    if (abnormal_reset) {
+        // Native USB CDC takes a few seconds to re-enumerate after a crash
+        // reset, so a single println here is usually lost into the void
+        // before any terminal reattaches. Keep repeating it so whichever
+        // terminal finally reconnects still catches it.
+        for (int i = 0; i < 20; ++i) {
+            Serial.printf("[app] !!! abnormal reset reason=%d (see esp_reset_reason_t) !!!\n",
+                          static_cast<int>(reset_reason));
+            delay(250);
+        }
+    }
+
     Serial.println();
     Serial.println("[app] setup begin");
     Serial.printf("[app] reset reason=%d free_heap=%u psram=%u\n",
-                  static_cast<int>(esp_reset_reason()),
+                  static_cast<int>(reset_reason),
                   static_cast<unsigned>(ESP.getFreeHeap()),
                   static_cast<unsigned>(ESP.getFreePsram()));
     Serial.printf("[app] wifi mac=%s\n", WiFi.macAddress().c_str());
