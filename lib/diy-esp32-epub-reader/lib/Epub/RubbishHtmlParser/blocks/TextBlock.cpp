@@ -82,12 +82,20 @@ void TextBlock::layout(Renderer *renderer, Epub *epub, int max_width)
 
   // now apply the dynamic programming algorithm to find the best line breaks
   int n = word_widths.size();
+  if (n == 0)
+  {
+    return;
+  }
 
-  // DP table in which dp[i] represents cost of line starting with word words[i]
-  int dp[n];
-
-  // Array in which ans[i] store index of last word in line starting with word word[i]
-  size_t ans[n];
+  // DP table in which dp[i] represents cost of line starting with word words[i].
+  // Heap-allocated (not a stack VLA) because a single block can hold thousands
+  // of words (e.g. an unbroken chapter of text), which would otherwise blow the
+  // task stack - a crash that's silent over native USB CDC since the panic
+  // handler can't reliably flush TinyUSB's buffer with interrupts disabled.
+  std::vector<int> dp_storage(n);
+  std::vector<size_t> ans_storage(n);
+  int *dp = dp_storage.data();
+  size_t *ans = ans_storage.data();
 
   // If only one word is present then only one line is required. Cost of last line is zero. Hence cost
   // of this line is zero. Ending point is also n-1 as single word is present
