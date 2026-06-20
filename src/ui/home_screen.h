@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "board/board.h"
 #include "sdk/app_descriptor.h"
 #include "services/time_service.h"
@@ -13,6 +15,9 @@ struct HomeViewModel {
     StatusBarViewModel status_bar;
     const AppDescriptor* apps = nullptr;
     size_t app_count = 0;
+    const uint8_t* wallpaper = nullptr;
+    int wallpaper_width = 0;
+    int wallpaper_height = 0;
 };
 
 struct AppScreenViewModel {

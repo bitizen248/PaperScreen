@@ -13,6 +13,7 @@
 #include "services/storage_service.h"
 #include "services/time_service.h"
 #include "services/trmnl_service.h"
+#include "services/wallpaper_service.h"
 #include "services/wifi_service.h"
 #include "ui/home_screen.h"
 #include "ui/lock_screen.h"
@@ -74,6 +75,7 @@ private:
     bool trmnl_desk_mode_active() const;
     bool trmnl_manual_action_allowed(const char* label);
     void clear_trmnl_cached_fallback();
+    void generate_wallpaper();
     void render_home();
     void render_home_content();
     void render_current_app(bool preserve_status_bar);

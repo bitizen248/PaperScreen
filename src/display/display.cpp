@@ -8,6 +8,7 @@
 #include "display/image_renderer.h"
 #include "display/screens/boot_screen.h"
 #include "display/screens/lock_screen.h"
+#include "display/terrain_renderer.h"
 #include "display/widgets/app_grid.h"
 #include "display/widgets/status_bar.h"
 
@@ -708,6 +709,10 @@ namespace paper_screen {
         ctx.width = width_;
         ctx.height = height_;
 
+        if (view_model.wallpaper != nullptr) {
+            render_heightmap_region(ctx, view_model.wallpaper, view_model.wallpaper_width,
+                                     view_model.wallpaper_height, kStatusBarHeight);
+        }
         render_status_bar(ctx, view_model.status_bar);
         render_app_grid(ctx, view_model, kStatusBarHeight + 28);
 
@@ -842,6 +847,10 @@ namespace paper_screen {
         ctx.height = height_;
 
         clear_content_area(ctx);
+        if (view_model.wallpaper != nullptr) {
+            render_heightmap_region(ctx, view_model.wallpaper, view_model.wallpaper_width,
+                                     view_model.wallpaper_height, kStatusBarHeight);
+        }
         render_app_grid(ctx, view_model, kStatusBarHeight + 28);
         update_area(content_area(width_, height_), MODE_GC16);
         Serial.println("[display] home content render done");

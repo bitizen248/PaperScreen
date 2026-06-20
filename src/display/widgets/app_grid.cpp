@@ -96,6 +96,7 @@ void draw_icon(DisplayRenderContext ctx, AppIcon icon, EpdRect rect)
 
 void render_tile(DisplayRenderContext ctx, const AppDescriptor& app, EpdRect rect)
 {
+    epd_fill_rect(rect, epd_gray(kWhite), ctx.framebuffer);
     epd_draw_rect(rect, kBlack, ctx.framebuffer);
     draw_icon(ctx, app.icon, rect);
     draw_label_centered(ctx, app.name, {rect.x, rect.y + rect.height - 46, rect.width, 36});

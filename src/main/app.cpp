@@ -154,6 +154,10 @@ void App::setup()
     last_activity_ms_ = millis();
     Serial.println("[app] home state update done");
 
+    Serial.println("[app] wallpaper generate begin");
+    generate_wallpaper();
+    Serial.println("[app] wallpaper generate done");
+
     Serial.println("[app] setup done");
 }
 
@@ -1092,6 +1096,16 @@ void App::clear_trmnl_cached_fallback()
         trmnl_cached_fallback_image_ = nullptr;
     }
     trmnl_cached_fallback_size_ = 0;
+}
+
+void App::generate_wallpaper()
+{
+    const int wallpaper_width = display_.width();
+    const int wallpaper_height = display_.height() - display_.status_bar_height();
+    const uint32_t seed = static_cast<uint32_t>(millis()) ^ static_cast<uint32_t>(micros()) ^ 0x9E3779B9u;
+    if (wallpaper_.generate(wallpaper_width, wallpaper_height, seed)) {
+        home_.set_wallpaper(wallpaper_.data(), wallpaper_.width(), wallpaper_.height());
+    }
 }
 
 void App::render_home()

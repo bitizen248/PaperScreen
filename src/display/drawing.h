@@ -19,6 +19,10 @@ constexpr uint8_t epd_gray(Gray4 color)
     return static_cast<uint8_t>(color) * 17;
 }
 
+// Maps an 8-bit luma sample to the panel's 4-bit grayscale levels, applying a
+// gamma-ish darkening curve so mid-tones don't wash out on e-paper.
+uint8_t quantize_gray4(uint8_t luma);
+
 void draw_text_12(DisplayRenderContext ctx, const char* text, int x, int y, EpdFontFlags flags);
 void draw_text_20(DisplayRenderContext ctx, const char* text, int x, int y, EpdFontFlags flags);
 void draw_text_12(DisplayRenderContext ctx, const char* text, int x, int y, EpdFontFlags flags, Gray4 fg, Gray4 bg);

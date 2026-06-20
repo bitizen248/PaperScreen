@@ -47,17 +47,6 @@ void log_png_error(unsigned error)
     Serial.printf("[image] png decode failed error=%u %s\n", error, lodepng_error_text(error));
 }
 
-uint8_t epaper_gray4(uint8_t value)
-{
-    if (value >= 248U) {
-        return 0xFF;
-    }
-
-    const uint8_t darkened = static_cast<uint8_t>((static_cast<uint16_t>(value) * value + 127U) / 255U);
-    const uint8_t level = static_cast<uint8_t>((static_cast<uint16_t>(darkened) * 15U + 127U) / 255U);
-    return static_cast<uint8_t>(level * 17U);
-}
-
 struct RenderStats {
     uint32_t black = 0;
     uint32_t gray = 0;
@@ -111,7 +100,7 @@ bool render_gray(paper_screen::DisplayRenderContext ctx,
             add_sample(stats, gray);
             epd_draw_pixel(offset_x + x,
                            offset_y + y,
-                           epaper_gray4(gray),
+                           paper_screen::quantize_gray4(gray),
                            ctx.framebuffer);
         }
     }
