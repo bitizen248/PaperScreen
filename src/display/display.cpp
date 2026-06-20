@@ -12,9 +12,8 @@
 #include "display/widgets/app_grid.h"
 #include "display/widgets/status_bar.h"
 
-// Counters persisted across deep-sleep for anti-ghosting waveform selection.
-// Cleared on power-off; survive timer-wakeup cycles.
-RTC_DATA_ATTR static uint16_t s_trmnl_du_counter = 0;
+// Counter persisted across deep-sleep for periodic GC16 ghost-clear cycles.
+// Cleared on power-off; survives timer-wakeup cycles.
 RTC_DATA_ATTR static uint16_t s_trmnl_gl_counter = 0;
 
 namespace {
@@ -27,20 +26,16 @@ namespace {
     constexpr EpdRotation kTrmnlRotation = EPD_ROT_LANDSCAPE;
     constexpr bool kTrmnlThoroughRefresh = true;
 
-    // Slow refreshes (>= 30 min) always use GL16; fast refreshes cycle
-    // DU → GL16 every 10 → GC16 every 3rd GL16 to stay ghost-free.
-    constexpr uint32_t kSlowRefreshThresholdSec = 1800;
-    constexpr uint16_t kFullRefreshEvery = 10;
-    constexpr uint16_t kGhostClearEvery  = 3;
+    // Anti-ghosting waveform selection for grayscale TRMNL content.
+    // MODE_DU is intentionally excluded — it is binary-only and destroys gray levels.
+    // GL16 every cycle; GC16 (deep ghost clear) every kGhostClearEvery GL16 refreshes.
+    constexpr uint16_t kGhostClearEvery = 10;
 
     EpdDrawMode select_trmnl_mode(uint32_t refresh_seconds, bool force_full)
     {
-        if (force_full || refresh_seconds >= kSlowRefreshThresholdSec || refresh_seconds == 0) {
-            return MODE_GL16;
-        }
-        s_trmnl_du_counter++;
-        if (s_trmnl_du_counter % kFullRefreshEvery != 0) {
-            return MODE_DU;
+        (void)refresh_seconds;
+        if (force_full) {
+            return MODE_GC16;
         }
         s_trmnl_gl_counter++;
         if (s_trmnl_gl_counter % kGhostClearEvery == 0) {
