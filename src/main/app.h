@@ -39,7 +39,6 @@ private:
         Settings,
         Trmnl,
         GenericApp,
-        UsbDrive,
     };
 
     void handle_power_button();
@@ -64,6 +63,7 @@ private:
     void handle_generic_app_result(const AppEventResult& result);
     void open_usb_drive();
     void render_usb_drive();
+    void run_usb_drive_boot();
     void return_home_from_app();
     void show_dropdown();
     void hide_dropdown();

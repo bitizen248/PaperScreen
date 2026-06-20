@@ -14,6 +14,15 @@ namespace paper_screen {
 
 namespace {
 
+// Survives esp_restart() (unlike statically-initialized globals, which get
+// re-zeroed) so open_usb_drive() can request that the *next* boot register
+// the USB MSC class before the USB stack comes up. TinyUSB only builds its
+// descriptor once, at the first USB.begin() call (which Serial.begin()
+// triggers implicitly under ARDUINO_USB_CDC_ON_BOOT=1), so MSC must be
+// registered before that point or it never enumerates.
+RTC_NOINIT_ATTR uint32_t g_usb_drive_boot_request;
+constexpr uint32_t kUsbDriveBootMagic = 0x55534244;  // "USBD"
+
 constexpr unsigned long kBootSleepDebounceMs = 80;
 constexpr unsigned long kIdleSleepTimeoutMs = 60UL * 1000UL;
 constexpr unsigned long kLockedDeepSleepTimeoutMs = 10UL * 60UL * 1000UL;
@@ -82,6 +91,11 @@ App::~App()
 
 void App::setup()
 {
+    if (g_usb_drive_boot_request == kUsbDriveBootMagic) {
+        run_usb_drive_boot();
+        return;
+    }
+
     Serial.begin(115200);
     delay(50);
 
@@ -398,12 +412,6 @@ void App::handle_touch_event(const BoardInputEvent& event)
             return;
         }
 
-        if (screen_ == Screen::UsbDrive) {
-            Serial.println("[app] usb drive: tap to disconnect; restarting");
-            esp_restart();
-            return;
-        }
-
         if (dropdown_visible_) {
             const DropdownAction action = display_.hit_test_dropdown_action(end_x, end_y);
             if (action != DropdownAction::None) {
@@ -443,7 +451,7 @@ void App::handle_touch_event(const BoardInputEvent& event)
         break;
     }
 
-    if (screen_ == Screen::Trmnl || screen_ == Screen::GenericApp || screen_ == Screen::UsbDrive) {
+    if (screen_ == Screen::Trmnl || screen_ == Screen::GenericApp) {
         return;
     }
 
@@ -665,14 +673,9 @@ void App::handle_generic_app_result(const AppEventResult& result)
 
 void App::open_usb_drive()
 {
-    close_current_app();
-    dropdown_visible_ = false;
-    screen_ = Screen::UsbDrive;
-    render_usb_drive();
-
-    if (!usb_storage_.begin(board_storage_)) {
-        Serial.println("[app] usb drive: SD card not mounted; staying on message screen");
-    }
+    Serial.println("[app] usb drive: rebooting to register USB MSC before the USB stack starts");
+    g_usb_drive_boot_request = kUsbDriveBootMagic;
+    esp_restart();
 }
 
 void App::render_usb_drive()
@@ -682,6 +685,39 @@ void App::render_usb_drive()
     draw_text_12(ctx, "Connect a cable to your computer to access the SD card.", 16, 120, EPD_DRAW_ALIGN_LEFT);
     draw_text_12(ctx, "Tap anywhere to disconnect and restart.", 16, 148, EPD_DRAW_ALIGN_LEFT);
     display_.end_app_frame(AppRefreshHint::Full);
+}
+
+void App::run_usb_drive_boot()
+{
+    g_usb_drive_boot_request = 0;
+
+    const BoardStatus board_status = board_.begin();
+    (void)board_status;
+    settings_.begin();
+    storage_.begin(board_storage_);
+    display_.begin(settings_.refresh_policy());
+
+    Serial.begin(115200);
+    delay(50);
+    Serial.println("[app] usb drive boot mode");
+
+    if (!usb_storage_.begin(board_storage_)) {
+        Serial.println("[app] usb drive: SD card not mounted; staying on message screen");
+    }
+
+    render_usb_drive();
+
+    while (true) {
+        board_.poll_input();
+        BoardInputEvent event;
+        while (board_.next_input_event(event)) {
+            if (event.type == BoardInputEventType::TouchUp) {
+                Serial.println("[app] usb drive: tap to disconnect; restarting");
+                esp_restart();
+            }
+        }
+        delay(20);
+    }
 }
 
 void App::return_home_from_app()
@@ -823,8 +859,6 @@ void App::handle_locked_state()
         render_trmnl(false);
     } else if (screen_ == Screen::GenericApp) {
         render_generic_app(true);
-    } else if (screen_ == Screen::UsbDrive) {
-        render_usb_drive();
     } else {
         render_current_app(false);
     }
@@ -840,7 +874,7 @@ void App::check_idle_sleep_timeout()
     if (locked_) {
         return;
     }
-    if (screen_ == Screen::Trmnl || screen_ == Screen::UsbDrive) {
+    if (screen_ == Screen::Trmnl) {
         return;
     }
 
@@ -1335,8 +1369,7 @@ void App::apply_status_bar_battery(StatusBarViewModel& status_bar)
 
 void App::refresh_status_clock_if_needed()
 {
-    if (locked_ || dropdown_visible_ || screen_ == Screen::Trmnl || screen_ == Screen::GenericApp
-        || screen_ == Screen::UsbDrive) {
+    if (locked_ || dropdown_visible_ || screen_ == Screen::Trmnl || screen_ == Screen::GenericApp) {
         return;
     }
 
@@ -1389,8 +1422,6 @@ StatusBarViewModel App::current_status_bar_model()
     case Screen::Trmnl:
         return trmnl_screen_.view_model().status_bar;
     case Screen::GenericApp:
-        return {};
-    case Screen::UsbDrive:
         return {};
     }
 
