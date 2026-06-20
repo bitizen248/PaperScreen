@@ -90,6 +90,10 @@ void App::setup()
     home_.set_board_status(board_status);
     Serial.println("[app] home state update done");
 
+    Serial.println("[app] wallpaper generate begin");
+    generate_wallpaper();
+    Serial.println("[app] wallpaper generate done");
+
     Serial.println("[app] setup done");
 }
 
@@ -636,6 +640,10 @@ void App::handle_settings_action(SettingRowAction action)
     case SettingRowAction::ToggleTrmnlMode:
         settings_.set_trmnl_mode(settings_.trmnl_mode() == TrmnlMode::Mirror ? TrmnlMode::Playlist : TrmnlMode::Mirror);
         break;
+    case SettingRowAction::RegenerateWallpaper:
+        Serial.println("[app] settings regenerate wallpaper");
+        generate_wallpaper();
+        break;
     }
 
     update_settings_screen();
@@ -668,6 +676,16 @@ void App::refresh_trmnl(bool full_refresh)
         trmnl_last_image_url_[sizeof(trmnl_last_image_url_) - 1] = '\0';
     } else {
         trmnl_last_image_url_[0] = '\0';
+    }
+}
+
+void App::generate_wallpaper()
+{
+    const int wallpaper_width = display_.width();
+    const int wallpaper_height = display_.height() - display_.status_bar_height();
+    const uint32_t seed = static_cast<uint32_t>(millis()) ^ static_cast<uint32_t>(micros()) ^ 0x9E3779B9u;
+    if (wallpaper_.generate(wallpaper_width, wallpaper_height, seed)) {
+        home_.set_wallpaper(wallpaper_.data(), wallpaper_.width(), wallpaper_.height());
     }
 }
 

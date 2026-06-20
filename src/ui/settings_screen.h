@@ -13,6 +13,7 @@ enum class SettingRowAction {
     TestWifiConnection,
     ToggleTrmnlEnabled,
     ToggleTrmnlMode,
+    RegenerateWallpaper,
 };
 
 struct SettingRowViewModel {
@@ -37,7 +38,7 @@ public:
 private:
     void add_row(const char* label, const char* value, SettingRowAction action = SettingRowAction::None, bool enabled = true);
 
-    SettingRowViewModel rows_[14];
+    SettingRowViewModel rows_[16];
     int row_count_ = 0;
     char network_value_[64] = {};
     char status_value_[24] = {};

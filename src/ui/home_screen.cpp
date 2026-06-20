@@ -48,6 +48,13 @@ void HomeScreen::set_board_status(BoardStatus status)
     board_status_ = status;
 }
 
+void HomeScreen::set_wallpaper(const uint8_t* data, int width, int height)
+{
+    wallpaper_ = data;
+    wallpaper_width_ = width;
+    wallpaper_height_ = height;
+}
+
 HomeViewModel HomeScreen::view_model() const
 {
     HomeViewModel model;
@@ -59,6 +66,9 @@ HomeViewModel HomeScreen::view_model() const
     model.status_bar.battery = "--%";
     model.apps = kHomeApps;
     model.app_count = static_cast<int>(sizeof(kHomeApps) / sizeof(kHomeApps[0]));
+    model.wallpaper = wallpaper_;
+    model.wallpaper_width = wallpaper_width_;
+    model.wallpaper_height = wallpaper_height_;
     return model;
 }
 
