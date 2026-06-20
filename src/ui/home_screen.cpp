@@ -33,9 +33,9 @@ HomeViewModel HomeScreen::view_model() const
     model.status_bar.time = "--:--";
     model.status_bar.battery = "--%";
     model.apps = home_app_registry(&model.app_count);
-    model.wallpaper = wallpaper_;
-    model.wallpaper_width = wallpaper_width_;
-    model.wallpaper_height = wallpaper_height_;
+    // model.wallpaper = wallpaper_;
+    // model.wallpaper_width = wallpaper_width_;
+    // model.wallpaper_height = wallpaper_height_;
     return model;
 }
 

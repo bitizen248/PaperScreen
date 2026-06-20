@@ -212,7 +212,7 @@ void SettingsScreen::build_trmnl_page(const SettingsService& settings)
     add_row("Ready", yes_no(trmnl_ready));
 
     add_row("Wallpaper", "", SettingRowAction::None, false);
-    add_row("Home background", "Regenerate", SettingRowAction::RegenerateWallpaper);
+    // add_row("Home background", "Regenerate", SettingRowAction::RegenerateWallpaper);
 }
 
 void SettingsScreen::add_row(const char* label, const char* value, SettingRowAction action, bool enabled)
