@@ -34,6 +34,11 @@ bool is_png_payload(const uint8_t* data, size_t size)
            std::memcmp(data, kPngSignature, sizeof(kPngSignature)) == 0;
 }
 
+bool is_jpeg_payload(const uint8_t* data, size_t size)
+{
+    return data != nullptr && size >= 2 && data[0] == 0xFF && data[1] == 0xD8;
+}
+
 bool is_bmp_payload(const uint8_t* data, size_t size)
 {
     return data != nullptr && size >= 2 && data[0] == 'B' && data[1] == 'M';
@@ -56,6 +61,7 @@ void log_image_head(const uint8_t* data, size_t size)
 const char* payload_format_name(const uint8_t* data, size_t size)
 {
     if (is_png_payload(data, size)) return "png";
+    if (is_jpeg_payload(data, size)) return "jpeg";
     if (is_bmp_payload(data, size)) return "bmp";
     return "unknown";
 }
@@ -323,6 +329,14 @@ bool parse_metadata_response(const String& body, uint32_t fallback_refresh_secon
     const char* image_name = doc["image_name"] | doc["filename"] | "";
     copy_text(response->image_name, sizeof(response->image_name), image_name);
     response->refresh_seconds = json_refresh_seconds(doc["refresh_rate"], fallback_refresh_seconds);
+
+    response->update_firmware = doc["update_firmware"] | false;
+    response->reset_firmware  = doc["reset_firmware"]  | false;
+    response->maximum_compatibility = doc["maximum_compatibility"] | false;
+    const char* firmware_url = doc["firmware_url"] | "";
+    copy_text(response->firmware_url, sizeof(response->firmware_url), firmware_url);
+    const char* special_fn = doc["special_function"] | "";
+    copy_text(response->special_fn, sizeof(response->special_fn), special_fn);
     return true;
 }
 
@@ -627,11 +641,11 @@ bool TrmnlService::download_image(const TrmnlSettings& settings)
     Serial.printf("[trmnl] image downloaded bytes=%lu\n", static_cast<unsigned long>(image_size_));
     Serial.printf("[trmnl] image visual hash=%lu\n", static_cast<unsigned long>(snapshot_.image_visual_hash));
 
-    if (!is_png_payload(image_data_, image_size_)) {
+    if (!is_png_payload(image_data_, image_size_) && !is_jpeg_payload(image_data_, image_size_)) {
         if (is_bmp_payload(image_data_, image_size_)) {
-            Serial.println("[trmnl] downloaded image is BMP; current renderer only supports PNG");
+            Serial.println("[trmnl] downloaded image is BMP; renderer supports PNG and JPEG");
         } else {
-            Serial.println("[trmnl] downloaded image format is unknown; current renderer only supports PNG");
+            Serial.println("[trmnl] downloaded image format unknown; renderer supports PNG and JPEG");
         }
         set_status(TrmnlFetchStatus::DecodeError);
         return false;

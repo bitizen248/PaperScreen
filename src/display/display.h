@@ -47,6 +47,7 @@ public:
     void render_trmnl_overlay(const char* label);
     void render_trmnl_activity_overlay(TrmnlFetchStatus status, const char* battery);
     void render_trmnl_menu();
+    void identify_flash();
     int hit_test_home_app(const HomeViewModel& view_model, int x, int y) const;
     SettingRowAction hit_test_settings_action(const SettingsViewModel& view_model, int x, int y) const;
     DropdownAction hit_test_dropdown_action(int x, int y) const;

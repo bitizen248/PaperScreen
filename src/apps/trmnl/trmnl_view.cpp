@@ -78,6 +78,8 @@ TrmnlViewModel TrmnlView::view_model() const
     model.image_data = image_data_;
     model.image_size = image_size_;
     model.show_exit_prompt = show_exit_prompt_;
+    model.refresh_seconds = snapshot_.response.refresh_seconds;
+    model.maximum_compatibility = snapshot_.response.maximum_compatibility;
     return model;
 }
 

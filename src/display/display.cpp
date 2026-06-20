@@ -12,6 +12,11 @@
 #include "display/widgets/app_grid.h"
 #include "display/widgets/status_bar.h"
 
+// Counters persisted across deep-sleep for anti-ghosting waveform selection.
+// Cleared on power-off; survive timer-wakeup cycles.
+RTC_DATA_ATTR static uint16_t s_trmnl_du_counter = 0;
+RTC_DATA_ATTR static uint16_t s_trmnl_gl_counter = 0;
+
 namespace {
 #define PAPER_SCREEN_WAVEFORM EPD_BUILTIN_WAVEFORM
 #define PAPER_SCREEN_BOARD epd_board_v7
@@ -20,8 +25,29 @@ namespace {
 
     constexpr EpdRotation kNormalRotation = EPD_ROT_INVERTED_PORTRAIT;
     constexpr EpdRotation kTrmnlRotation = EPD_ROT_LANDSCAPE;
-    constexpr EpdDrawMode kTrmnlUpdateMode = MODE_GC16;
     constexpr bool kTrmnlThoroughRefresh = true;
+
+    // Slow refreshes (>= 30 min) always use GL16; fast refreshes cycle
+    // DU → GL16 every 10 → GC16 every 3rd GL16 to stay ghost-free.
+    constexpr uint32_t kSlowRefreshThresholdSec = 1800;
+    constexpr uint16_t kFullRefreshEvery = 10;
+    constexpr uint16_t kGhostClearEvery  = 3;
+
+    EpdDrawMode select_trmnl_mode(uint32_t refresh_seconds, bool force_full)
+    {
+        if (force_full || refresh_seconds >= kSlowRefreshThresholdSec || refresh_seconds == 0) {
+            return MODE_GL16;
+        }
+        s_trmnl_du_counter++;
+        if (s_trmnl_du_counter % kFullRefreshEvery != 0) {
+            return MODE_DU;
+        }
+        s_trmnl_gl_counter++;
+        if (s_trmnl_gl_counter % kGhostClearEvery == 0) {
+            return MODE_GC16;
+        }
+        return MODE_GL16;
+    }
 
     static inline void log_draw_error(enum EpdDrawError err) {
         if (err != EPD_DRAW_SUCCESS) {
@@ -250,7 +276,7 @@ namespace {
             && view_model.image_data != nullptr
             && view_model.image_size > 0) {
             Serial.println("[display] trmnl png render begin");
-            if (paper_screen::render_png_image(ctx, view_model.image_data, view_model.image_size)) {
+            if (paper_screen::render_image(ctx, view_model.image_data, view_model.image_size)) {
                 rendered_image = true;
             }
             Serial.printf("[display] trmnl png render done rendered=%s\n", rendered_image ? "yes" : "no");
@@ -802,13 +828,15 @@ namespace paper_screen {
         render_trmnl_content(ctx, view_model);
         Serial.println("[display] trmnl content draw done");
 
+        const EpdDrawMode mode = select_trmnl_mode(view_model.refresh_seconds, view_model.maximum_compatibility);
         Serial.printf("[display] trmnl update_screen mode=%d temp=%d begin\n",
-                      static_cast<int>(MODE_GC16), epd_ambient_temperature());
-        update_screen(MODE_GC16);
-        Serial.printf("[display] trmnl update_screen mode=%d done\n", static_cast<int>(MODE_GC16));
-        if (kTrmnlThoroughRefresh && view_model.image_data != nullptr && view_model.image_size > 0) {
+                      static_cast<int>(mode), epd_ambient_temperature());
+        update_screen(mode);
+        Serial.printf("[display] trmnl update_screen mode=%d done\n", static_cast<int>(mode));
+        if (kTrmnlThoroughRefresh && mode == MODE_GC16
+            && view_model.image_data != nullptr && view_model.image_size > 0) {
             Serial.println("[display] trmnl contrast settle update begin");
-            update_screen(MODE_GC16);
+            update_screen(mode);
             Serial.println("[display] trmnl contrast settle update done");
         }
         Serial.println("[display] trmnl render done");
@@ -930,14 +958,15 @@ namespace paper_screen {
         render_trmnl_content(ctx, view_model);
         Serial.println("[display] trmnl content draw done");
         Serial.println("[display] trmnl e-paper update begin");
+        const EpdDrawMode mode = select_trmnl_mode(view_model.refresh_seconds, view_model.maximum_compatibility);
         Serial.printf("[display] trmnl update_screen mode=%d temp=%d begin\n",
-                      static_cast<int>(kTrmnlUpdateMode), epd_ambient_temperature());
-        update_screen(kTrmnlUpdateMode);
-        Serial.printf("[display] trmnl update_screen mode=%d done\n",
-              static_cast<int>(kTrmnlUpdateMode));
-        if (kTrmnlThoroughRefresh && view_model.image_data != nullptr && view_model.image_size > 0) {
+                      static_cast<int>(mode), epd_ambient_temperature());
+        update_screen(mode);
+        Serial.printf("[display] trmnl update_screen mode=%d done\n", static_cast<int>(mode));
+        if (kTrmnlThoroughRefresh && mode == MODE_GC16
+            && view_model.image_data != nullptr && view_model.image_size > 0) {
             Serial.println("[display] trmnl contrast settle update begin");
-            update_screen(kTrmnlUpdateMode);
+            update_screen(mode);
             Serial.println("[display] trmnl contrast settle update done");
         }
         Serial.println("[display] trmnl e-paper update done");
@@ -989,7 +1018,7 @@ namespace paper_screen {
         ctx.height = height_;
 
         render_trmnl_overlay_content(ctx, label);
-        update_area(trmnl_overlay_rect(), kTrmnlUpdateMode);
+        update_area(trmnl_overlay_rect(), MODE_GL16);
         Serial.println("[display] trmnl overlay render done");
     }
 
@@ -1007,7 +1036,7 @@ namespace paper_screen {
         ctx.height = height_;
 
         render_trmnl_indicator_icons(ctx, status, battery);
-        update_area({0, 0, ctx.width, 34}, kTrmnlUpdateMode);
+        update_area({0, 0, ctx.width, 34}, MODE_GL16);
         Serial.println("[display] trmnl activity overlay render done");
     }
 
@@ -1025,8 +1054,24 @@ namespace paper_screen {
         ctx.height = height_;
 
         render_trmnl_menu_content(ctx);
-        update_area(trmnl_menu_rect(ctx.width, ctx.height), kTrmnlUpdateMode);
+        update_area(trmnl_menu_rect(ctx.width, ctx.height), MODE_GL16);
         Serial.println("[display] trmnl menu render done");
+    }
+
+    void Display::identify_flash()
+    {
+        if (!initialized_) return;
+        Serial.println("[display] identify flash begin");
+        apply_rotation(kTrmnlRotation);
+        epd_hl_set_all_white(&g_epd);
+        epd_poweron();
+        epd_hl_update_screen(&g_epd, MODE_DU, epd_ambient_temperature());
+        epd_poweroff();
+        delay(300);
+        epd_poweron();
+        epd_hl_update_screen(&g_epd, MODE_DU, epd_ambient_temperature());
+        epd_poweroff();
+        Serial.println("[display] identify flash done");
     }
 
     int Display::hit_test_home_app(const HomeViewModel &view_model, int x, int y) const {

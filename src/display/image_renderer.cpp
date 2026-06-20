@@ -5,14 +5,100 @@
 #include <cstdlib>
 
 #include <epdiy.h>
+#include <esp_heap_caps.h>
 #define LODEPNG_NO_COMPILE_CPP
 extern "C" {
 #include <extra/libs/png/lodepng.h>
 }
+#include <JPEGDEC.h>
 
 #include "display/drawing.h"
 
 namespace {
+
+struct JpegGrayContext {
+    uint8_t* buf;
+    int width;
+    int height;
+};
+
+static JpegGrayContext* g_jpeg_ctx = nullptr;
+
+static int jpeg_gray_cb(JPEGDRAW* d)
+{
+    if (!g_jpeg_ctx) return 0;
+    const auto* src = reinterpret_cast<const uint8_t*>(d->pPixels);
+    for (int row = 0; row < d->iHeight; ++row) {
+        int y = d->y + row;
+        if (y < 0 || y >= g_jpeg_ctx->height) continue;
+        for (int col = 0; col < d->iWidth; ++col) {
+            int x = d->x + col;
+            if (x < 0 || x >= g_jpeg_ctx->width) continue;
+            g_jpeg_ctx->buf[y * g_jpeg_ctx->width + x] = src[row * d->iWidth + col];
+        }
+    }
+    return 1;
+}
+
+bool decode_jpeg(const uint8_t* data, size_t size,
+                 uint8_t** out_gray, int* out_width, int* out_height)
+{
+    JPEGDEC jpeg;
+    if (!jpeg.openRAM(const_cast<uint8_t*>(data), static_cast<int>(size), jpeg_gray_cb)) {
+        Serial.printf("[image] jpeg open failed\n");
+        return false;
+    }
+
+    const int w = jpeg.getWidth();
+    const int h = jpeg.getHeight();
+    jpeg.close();
+
+    if (w <= 0 || h <= 0) {
+        Serial.printf("[image] jpeg bad dimensions %d x %d\n", w, h);
+        return false;
+    }
+
+    const size_t buf_bytes = static_cast<size_t>(w) * static_cast<size_t>(h);
+    uint8_t* buf = static_cast<uint8_t*>(
+        heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!buf) {
+        buf = static_cast<uint8_t*>(malloc(buf_bytes));
+    }
+    if (!buf) {
+        Serial.printf("[image] jpeg alloc failed %u bytes\n", static_cast<unsigned>(buf_bytes));
+        return false;
+    }
+
+    JpegGrayContext ctx = {buf, w, h};
+    g_jpeg_ctx = &ctx;
+
+    JPEGDEC jpeg2;
+    if (!jpeg2.openRAM(const_cast<uint8_t*>(data), static_cast<int>(size), jpeg_gray_cb)) {
+        g_jpeg_ctx = nullptr;
+        heap_caps_free(buf);
+        return false;
+    }
+    jpeg2.setPixelType(EIGHT_BIT_GRAYSCALE);
+    const bool ok = (jpeg2.decode(0, 0, 0) == 1);
+    jpeg2.close();
+    g_jpeg_ctx = nullptr;
+
+    if (!ok) {
+        Serial.printf("[image] jpeg decode failed\n");
+        heap_caps_free(buf);
+        return false;
+    }
+
+    *out_gray = buf;
+    *out_width = w;
+    *out_height = h;
+    return true;
+}
+
+bool is_jpeg(const uint8_t* data, size_t size)
+{
+    return data != nullptr && size >= 2 && data[0] == 0xFF && data[1] == 0xD8;
+}
 
 bool is_png(const uint8_t* data, size_t size)
 {
@@ -177,6 +263,35 @@ bool render_png_image(DisplayRenderContext ctx, const uint8_t* data, size_t size
     });
     free(rgba);
     return rendered;
+}
+
+bool render_image(DisplayRenderContext ctx, const uint8_t* data, size_t size, ImageFit fit)
+{
+    if (ctx.framebuffer == nullptr || data == nullptr || size == 0) {
+        Serial.println("[image] render skipped: framebuffer or data missing");
+        return false;
+    }
+
+    log_image_signature(data, size);
+
+    if (is_jpeg(data, size)) {
+        uint8_t* gray = nullptr;
+        int w = 0;
+        int h = 0;
+        if (!decode_jpeg(data, size, &gray, &w, &h)) {
+            Serial.println("[image] jpeg decode failed");
+            return false;
+        }
+        const bool rendered = render_gray(ctx, static_cast<unsigned>(w), static_cast<unsigned>(h),
+                                          "jpeg-gray8",
+                                          [gray, w](unsigned x, unsigned y) -> uint8_t {
+                                              return gray[static_cast<size_t>(y) * static_cast<size_t>(w) + x];
+                                          });
+        heap_caps_free(gray);
+        return rendered;
+    }
+
+    return render_png_image(ctx, data, size, fit);
 }
 
 uint32_t png_visual_hash(const uint8_t* data, size_t size)

@@ -17,6 +17,8 @@ struct TrmnlViewModel {
     const uint8_t* image_data = nullptr;
     size_t image_size = 0;
     bool show_exit_prompt = false;
+    uint32_t refresh_seconds = 0;
+    bool maximum_compatibility = false;
 };
 
 class TrmnlView {
