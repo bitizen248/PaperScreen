@@ -765,6 +765,32 @@ namespace paper_screen {
         Serial.println("[display] app render done");
     }
 
+    DisplayRenderContext Display::begin_app_frame(bool full_refresh) {
+        apply_rotation(kNormalRotation);
+        if (full_refresh) {
+            epd_hl_set_all_white(&g_epd);
+        }
+
+        DisplayRenderContext ctx;
+        ctx.framebuffer = epd_hl_get_framebuffer(&g_epd);
+        ctx.width = width_;
+        ctx.height = height_;
+        return ctx;
+    }
+
+    void Display::end_app_frame(AppRefreshHint hint) {
+        switch (hint) {
+        case AppRefreshHint::Full:
+            update_screen_logged(MODE_GC16, "[display] generic app");
+            return;
+        case AppRefreshHint::Partial:
+            update_screen_logged(MODE_GL16, "[display] generic app partial");
+            return;
+        case AppRefreshHint::None:
+            return;
+        }
+    }
+
     void Display::render(const SettingsViewModel &view_model) {
         Serial.println("[display] settings render begin");
         if (!initialized_) {

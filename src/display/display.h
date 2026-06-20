@@ -6,6 +6,7 @@
 
 #include "display/refresh_policy.h"
 #include "display/render_context.h"
+#include "sdk/app_result.h"
 #include "ui/home_screen.h"
 #include "ui/lock_screen.h"
 #include "ui/settings_screen.h"
@@ -43,6 +44,10 @@ public:
     void render_content(const AppScreenViewModel& view_model);
     void render_content(const SettingsViewModel& view_model);
     void render_content(const TrmnlViewModel& view_model);
+    // Generic SDK PaperApp render path: caller draws into the returned
+    // framebuffer-backed context, then end_app_frame() flushes it.
+    DisplayRenderContext begin_app_frame(bool full_refresh);
+    void end_app_frame(AppRefreshHint hint);
     void render_dropdown();
     void render_trmnl_overlay(const char* label);
     void render_trmnl_activity_overlay(TrmnlFetchStatus status, const char* battery);

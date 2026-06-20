@@ -387,6 +387,16 @@ void App::handle_touch_event(const BoardInputEvent& event)
             return;
         }
 
+        if (screen_ == Screen::GenericApp && generic_app_ != nullptr) {
+            AppEvent event;
+            event.type = AppEventType::TouchUp;
+            event.timestamp_ms = millis();
+            event.touch.x = end_x;
+            event.touch.y = end_y;
+            handle_generic_app_result(dispatch_generic_app_event(event));
+            return;
+        }
+
         if (dropdown_visible_) {
             const DropdownAction action = display_.hit_test_dropdown_action(end_x, end_y);
             if (action != DropdownAction::None) {
@@ -426,7 +436,7 @@ void App::handle_touch_event(const BoardInputEvent& event)
         break;
     }
 
-    if (screen_ == Screen::Trmnl) {
+    if (screen_ == Screen::Trmnl || screen_ == Screen::GenericApp) {
         return;
     }
 
@@ -546,6 +556,10 @@ void App::open_app(AppIcon icon)
         open_trmnl();
         return;
     }
+    if (icon == AppIcon::Reader) {
+        open_generic_app(reader_app_);
+        return;
+    }
 
     close_current_app();
     current_app_ = new (scaffold_app_storage_) ScaffoldApp(icon);
@@ -578,6 +592,19 @@ void App::open_trmnl()
     refresh_trmnl(true);
 }
 
+void App::open_generic_app(PaperApp& app)
+{
+    close_current_app();
+    dropdown_visible_ = false;
+    screen_ = Screen::GenericApp;
+    generic_app_ = &app;
+
+    AppPlatformContext app_context(app.descriptor().id, storage_, wifi_, time_, battery_, power_);
+    app.on_open(app_context.context);
+
+    render_generic_app(true);
+}
+
 void App::close_current_app()
 {
     if (current_app_ == nullptr) {
@@ -588,11 +615,55 @@ void App::close_current_app()
     current_app_ = nullptr;
 }
 
+void App::close_generic_app()
+{
+    if (generic_app_ == nullptr) {
+        return;
+    }
+
+    AppPlatformContext app_context(generic_app_->descriptor().id, storage_, wifi_, time_, battery_, power_);
+    generic_app_->on_close(app_context.context);
+    generic_app_ = nullptr;
+}
+
+void App::render_generic_app(bool full_refresh)
+{
+    if (generic_app_ == nullptr) {
+        return;
+    }
+
+    AppPlatformContext app_context(generic_app_->descriptor().id, storage_, wifi_, time_, battery_, power_);
+    DisplayRenderContext render_ctx = display_.begin_app_frame(full_refresh);
+    const AppRenderResult result = generic_app_->render(app_context.context, render_ctx);
+    display_.end_app_frame(full_refresh ? AppRefreshHint::Full : result.refresh_hint);
+}
+
+AppEventResult App::dispatch_generic_app_event(const AppEvent& event)
+{
+    AppPlatformContext app_context(generic_app_->descriptor().id, storage_, wifi_, time_, battery_, power_);
+    return generic_app_->on_event(app_context.context, event);
+}
+
+void App::handle_generic_app_result(const AppEventResult& result)
+{
+    if (result.action.return_home) {
+        return_home_from_app();
+        return;
+    }
+
+    if (result.refresh_hint != AppRefreshHint::None) {
+        render_generic_app(result.refresh_hint == AppRefreshHint::Full);
+    }
+}
+
 void App::return_home_from_app()
 {
     if (screen_ == Screen::Trmnl) {
         AppPlatformContext trmnl_context(trmnl_app_.descriptor().id, storage_, wifi_, time_, battery_, power_);
         trmnl_app_.on_close(trmnl_context.context);
+    }
+    if (screen_ == Screen::GenericApp) {
+        close_generic_app();
     }
     close_current_app();
     dropdown_visible_ = false;
@@ -722,6 +793,8 @@ void App::handle_locked_state()
         render_settings(false);
     } else if (screen_ == Screen::Trmnl) {
         render_trmnl(false);
+    } else if (screen_ == Screen::GenericApp) {
+        render_generic_app(true);
     } else {
         render_current_app(false);
     }
@@ -1229,7 +1302,7 @@ void App::apply_status_bar_battery(StatusBarViewModel& status_bar)
 
 void App::refresh_status_clock_if_needed()
 {
-    if (locked_ || dropdown_visible_ || screen_ == Screen::Trmnl) {
+    if (locked_ || dropdown_visible_ || screen_ == Screen::Trmnl || screen_ == Screen::GenericApp) {
         return;
     }
 
@@ -1281,6 +1354,8 @@ StatusBarViewModel App::current_status_bar_model()
         return settings_screen_.view_model().status_bar;
     case Screen::Trmnl:
         return trmnl_screen_.view_model().status_bar;
+    case Screen::GenericApp:
+        return {};
     }
 
     return {};

@@ -18,7 +18,7 @@ constexpr AppDescriptor kRegisteredApps[] = {
         .id = "reader",
         .name = "Reader",
         .icon = AppIcon::Reader,
-        .capabilities = AppCapabilityStorage,
+        .capabilities = AppCapabilityStorage | AppCapabilityFullscreen,
         .show_on_home = true,
     },
     {

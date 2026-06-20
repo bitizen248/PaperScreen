@@ -1,5 +1,6 @@
 #pragma once
 
+#include "apps/reader/reader_app.h"
 #include "apps/trmnl/trmnl_app.h"
 #include "apps/trmnl/trmnl_cache.h"
 #include "board/board.h"
@@ -36,6 +37,7 @@ private:
         App,
         Settings,
         Trmnl,
+        GenericApp,
     };
 
     void handle_power_button();
@@ -52,7 +54,12 @@ private:
     void open_app(AppIcon icon);
     void open_settings();
     void open_trmnl();
+    void open_generic_app(PaperApp& app);
     void close_current_app();
+    void close_generic_app();
+    void render_generic_app(bool full_refresh);
+    AppEventResult dispatch_generic_app_event(const AppEvent& event);
+    void handle_generic_app_result(const AppEventResult& result);
     void return_home_from_app();
     void show_dropdown();
     void hide_dropdown();
@@ -101,6 +108,8 @@ private:
     TrmnlService trmnl_;
     TrmnlApp trmnl_app_;
     TrmnlCache trmnl_cache_;
+    ReaderApp reader_app_;
+    PaperApp* generic_app_ = nullptr;
     HomeScreen home_;
     SettingsScreen settings_screen_;
     TrmnlScreen trmnl_screen_;
