@@ -1,0 +1,27 @@
+name: SDK Tests
+
+on:
+  push:
+    paths:
+      - "src/sdk/**"
+      - "src/apps/trmnl/**"
+      - "tests/sdk/**"
+      - "tests/README.md"
+      - ".github/workflows/sdk-tests.yml"
+  pull_request:
+    paths:
+      - "src/sdk/**"
+      - "src/apps/trmnl/**"
+      - "tests/sdk/**"
+      - "tests/README.md"
+      - ".github/workflows/sdk-tests.yml"
+
+jobs:
+  sdk-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SDK host tests
+        run: ./tests/sdk/run_sdk_tests.sh

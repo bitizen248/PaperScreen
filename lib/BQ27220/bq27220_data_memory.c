@@ -131,7 +131,7 @@ const BQ27220DMData gauge_data_memory[] = {
     {
         .address = BQ27220DMAddressGasGaugingCEDVProfile1StartDOD100,
         .type = BQ27220DMTypeU16,
-        .value.u16 = 2713,
+        .value.u16 = 3031,
     },
     {
         .address = BQ27220DMAddressGasGaugingCEDVProfile1EDV0,
