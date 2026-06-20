@@ -2,9 +2,6 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
-#include <Update.h>
 #include <cstring>
 #include <esp_system.h>
 #include <new>
@@ -34,41 +31,6 @@ constexpr unsigned long kBatteryFallbackUpdateMs = 60UL * 1000UL;
 }  // namespace
 
 namespace {
-
-static void perform_ota(const char* url)
-{
-    Serial.printf("[app] OTA from %s\n", url);
-    WiFiClientSecure sec;
-    sec.setInsecure();
-    HTTPClient http;
-    if (!http.begin(sec, url)) {
-        Serial.println("[app] OTA: begin failed");
-        return;
-    }
-    http.setTimeout(60000);
-    const int code = http.GET();
-    const int clen = http.getSize();
-    if (code != 200 || clen <= 0) {
-        Serial.printf("[app] OTA: HTTP %d len %d\n", code, clen);
-        http.end();
-        return;
-    }
-    if (!Update.begin(static_cast<size_t>(clen))) {
-        Serial.printf("[app] OTA: Update.begin failed: %s\n", Update.errorString());
-        http.end();
-        return;
-    }
-    WiFiClient* stream = http.getStreamPtr();
-    const size_t written = Update.writeStream(*stream);
-    http.end();
-    if (!Update.end() || !Update.isFinished()) {
-        Serial.printf("[app] OTA: write failed after %u bytes: %s\n",
-                      static_cast<unsigned>(written), Update.errorString());
-        return;
-    }
-    Serial.printf("[app] OTA complete (%u bytes), restarting\n", static_cast<unsigned>(written));
-    esp_restart();
-}
 
 TouchPoint trmnl_touch_to_display(TouchPoint raw, int display_width, int display_height)
 {
@@ -943,11 +905,6 @@ void App::refresh_trmnl(bool full_refresh,
         return;
     }
 
-    if (snapshot.response.update_firmware && snapshot.response.firmware_url[0] != '\0') {
-        perform_ota(snapshot.response.firmware_url);
-        // OTA calls esp_restart() on success; reaching here means it failed — continue normal render.
-    }
-
     if (snapshot.response.special_fn[0] != '\0') {
         if (std::strcmp(snapshot.response.special_fn, "sleep") == 0) {
             Serial.println("[app] trmnl special: sleep — skipping render");
@@ -1169,9 +1126,9 @@ void App::generate_wallpaper()
     const int wallpaper_width = display_.width();
     const int wallpaper_height = display_.height() - display_.status_bar_height();
     const uint32_t seed = static_cast<uint32_t>(millis()) ^ static_cast<uint32_t>(micros()) ^ 0x9E3779B9u;
-    if (wallpaper_.generate(wallpaper_width, wallpaper_height, seed)) {
-        home_.set_wallpaper(wallpaper_.data(), wallpaper_.width(), wallpaper_.height());
-    }
+    // if (wallpaper_.generate(wallpaper_width, wallpaper_height, seed)) {
+    //     home_.set_wallpaper(wallpaper_.data(), wallpaper_.width(), wallpaper_.height());
+    // }
 }
 
 void App::render_home()

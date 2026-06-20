@@ -64,8 +64,6 @@ struct TrmnlDisplayResponse {
     char metadata_etag[96] = {};
     char image_etag[96] = {};
     uint32_t refresh_seconds = 1800;
-    bool update_firmware = false;
-    char firmware_url[512] = {};
     bool reset_firmware = false;
     bool maximum_compatibility = false;
     char special_fn[32] = {};

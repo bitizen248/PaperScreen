@@ -330,11 +330,8 @@ bool parse_metadata_response(const String& body, uint32_t fallback_refresh_secon
     copy_text(response->image_name, sizeof(response->image_name), image_name);
     response->refresh_seconds = json_refresh_seconds(doc["refresh_rate"], fallback_refresh_seconds);
 
-    response->update_firmware = doc["update_firmware"] | false;
     response->reset_firmware  = doc["reset_firmware"]  | false;
     response->maximum_compatibility = doc["maximum_compatibility"] | false;
-    const char* firmware_url = doc["firmware_url"] | "";
-    copy_text(response->firmware_url, sizeof(response->firmware_url), firmware_url);
     const char* special_fn = doc["special_function"] | "";
     copy_text(response->special_fn, sizeof(response->special_fn), special_fn);
     return true;
