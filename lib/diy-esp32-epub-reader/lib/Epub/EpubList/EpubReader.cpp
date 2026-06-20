@@ -82,8 +82,9 @@ void EpubReader::prev()
       ESP_LOGD(TAG, "Going to previous section %d", state.current_section);
       parse_and_layout_current_section();
       state.current_page = state.pages_in_current_section - 1;
-      return;
     }
+    // Already at the first page of the first section; nothing to do.
+    return;
   }
   state.current_page--;
 }
