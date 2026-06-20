@@ -89,6 +89,10 @@ bool BoardBattery::begin()
         return false;
     }
 
+    if (!g_gauge.init()) {
+        Serial.println("[battery] gauge data memory provisioning failed");
+    }
+
     initialized_ = true;
     consecutive_failures_ = 0;
     Serial.println("[battery] ready");
