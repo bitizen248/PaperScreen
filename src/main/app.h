@@ -7,6 +7,7 @@
 #include "board/board_battery.h"
 #include "board/board_rtc.h"
 #include "board/board_storage.h"
+#include "board/board_usb_storage.h"
 #include "display/display.h"
 #include "services/battery_service.h"
 #include "services/power_service.h"
@@ -38,6 +39,7 @@ private:
         Settings,
         Trmnl,
         GenericApp,
+        UsbDrive,
     };
 
     void handle_power_button();
@@ -60,6 +62,8 @@ private:
     void render_generic_app(bool full_refresh);
     AppEventResult dispatch_generic_app_event(const AppEvent& event);
     void handle_generic_app_result(const AppEventResult& result);
+    void open_usb_drive();
+    void render_usb_drive();
     void return_home_from_app();
     void show_dropdown();
     void hide_dropdown();
@@ -98,6 +102,7 @@ private:
     BoardRtc rtc_;
     BoardBattery battery_board_;
     BoardStorage board_storage_;
+    BoardUsbStorage usb_storage_;
     Display display_;
     BatteryService battery_;
     PowerService power_;

@@ -22,6 +22,7 @@ enum class SettingRowAction {
     ToggleTrmnlMode,
     ToggleTrmnlAutonomous,
     ClearTrmnlCache,
+    OpenUsbDrive,
 };
 
 enum class SettingsPage {

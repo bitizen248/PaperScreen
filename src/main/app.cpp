@@ -7,6 +7,7 @@
 #include <new>
 
 #include "apps/trmnl/trmnl_settings_adapter.h"
+#include "display/drawing.h"
 #include "sdk/app_platform_context.h"
 
 namespace paper_screen {
@@ -397,6 +398,12 @@ void App::handle_touch_event(const BoardInputEvent& event)
             return;
         }
 
+        if (screen_ == Screen::UsbDrive) {
+            Serial.println("[app] usb drive: tap to disconnect; restarting");
+            esp_restart();
+            return;
+        }
+
         if (dropdown_visible_) {
             const DropdownAction action = display_.hit_test_dropdown_action(end_x, end_y);
             if (action != DropdownAction::None) {
@@ -436,7 +443,7 @@ void App::handle_touch_event(const BoardInputEvent& event)
         break;
     }
 
-    if (screen_ == Screen::Trmnl || screen_ == Screen::GenericApp) {
+    if (screen_ == Screen::Trmnl || screen_ == Screen::GenericApp || screen_ == Screen::UsbDrive) {
         return;
     }
 
@@ -656,6 +663,27 @@ void App::handle_generic_app_result(const AppEventResult& result)
     }
 }
 
+void App::open_usb_drive()
+{
+    close_current_app();
+    dropdown_visible_ = false;
+    screen_ = Screen::UsbDrive;
+    render_usb_drive();
+
+    if (!usb_storage_.begin(board_storage_)) {
+        Serial.println("[app] usb drive: SD card not mounted; staying on message screen");
+    }
+}
+
+void App::render_usb_drive()
+{
+    DisplayRenderContext ctx = display_.begin_app_frame(true);
+    draw_text_20(ctx, "USB Drive", 16, 80, EPD_DRAW_ALIGN_LEFT);
+    draw_text_12(ctx, "Connect a cable to your computer to access the SD card.", 16, 120, EPD_DRAW_ALIGN_LEFT);
+    draw_text_12(ctx, "Tap anywhere to disconnect and restart.", 16, 148, EPD_DRAW_ALIGN_LEFT);
+    display_.end_app_frame(AppRefreshHint::Full);
+}
+
 void App::return_home_from_app()
 {
     if (screen_ == Screen::Trmnl) {
@@ -795,6 +823,8 @@ void App::handle_locked_state()
         render_trmnl(false);
     } else if (screen_ == Screen::GenericApp) {
         render_generic_app(true);
+    } else if (screen_ == Screen::UsbDrive) {
+        render_usb_drive();
     } else {
         render_current_app(false);
     }
@@ -810,7 +840,7 @@ void App::check_idle_sleep_timeout()
     if (locked_) {
         return;
     }
-    if (screen_ == Screen::Trmnl) {
+    if (screen_ == Screen::Trmnl || screen_ == Screen::UsbDrive) {
         return;
     }
 
@@ -888,6 +918,9 @@ void App::handle_settings_action(SettingRowAction action)
         trmnl_app_.mark_image_result(false, 0);
         break;
     }
+    case SettingRowAction::OpenUsbDrive:
+        open_usb_drive();
+        return;
     }
 
     update_settings_screen();
@@ -1302,7 +1335,8 @@ void App::apply_status_bar_battery(StatusBarViewModel& status_bar)
 
 void App::refresh_status_clock_if_needed()
 {
-    if (locked_ || dropdown_visible_ || screen_ == Screen::Trmnl || screen_ == Screen::GenericApp) {
+    if (locked_ || dropdown_visible_ || screen_ == Screen::Trmnl || screen_ == Screen::GenericApp
+        || screen_ == Screen::UsbDrive) {
         return;
     }
 
@@ -1355,6 +1389,8 @@ StatusBarViewModel App::current_status_bar_model()
     case Screen::Trmnl:
         return trmnl_screen_.view_model().status_bar;
     case Screen::GenericApp:
+        return {};
+    case Screen::UsbDrive:
         return {};
     }
 

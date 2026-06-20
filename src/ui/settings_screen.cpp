@@ -176,6 +176,7 @@ void SettingsScreen::build_main_page(const SettingsService& settings,
     add_row("Time", time_status.rtc_valid ? "Set" : "Needs setup", SettingRowAction::OpenTimeSettings);
     add_row("Wi-Fi", wifi_settings.enabled ? status_value_ : "Off", SettingRowAction::OpenWifiSettings);
     add_row("TRMNL", trmnl_ready ? "Ready" : "Not ready", SettingRowAction::OpenTrmnlSettings);
+    add_row("USB Drive", "Connect", SettingRowAction::OpenUsbDrive);
 }
 
 void SettingsScreen::build_time_page(const SettingsService& settings)
