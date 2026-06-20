@@ -6,7 +6,7 @@
 
 class Renderer;
 
-void png_draw_callback(PNGDRAW *draw);
+int png_draw_callback(PNGDRAW *draw);
 
 class PNGHelper : public ImageHelper
 {
@@ -22,7 +22,7 @@ private:
 
   PNG png;
 
-  friend void png_draw_callback(PNGDRAW *draw);
+  friend int png_draw_callback(PNGDRAW *draw);
 
 public:
   bool get_size(const uint8_t *data, size_t data_size, int *width, int *height);

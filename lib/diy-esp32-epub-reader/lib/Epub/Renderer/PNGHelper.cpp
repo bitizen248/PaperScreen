@@ -83,8 +83,9 @@ void PNGHelper::draw_callback(PNGDRAW *draw)
   }
 };
 
-void png_draw_callback(PNGDRAW *draw)
+int png_draw_callback(PNGDRAW *draw)
 {
   PNGHelper *helper = (PNGHelper *)draw->pUser;
   helper->draw_callback(draw);
+  return 1;
 }
