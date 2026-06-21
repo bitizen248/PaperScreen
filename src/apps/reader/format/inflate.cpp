@@ -272,7 +272,10 @@ bool inflate_block(BitReader* reader, const HuffmanTable& lit_len, const Huffman
 bool inflate_raw(const uint8_t* input, size_t input_size, uint8_t* output, size_t output_capacity,
                   size_t* output_size)
 {
-    if (input == nullptr || output == nullptr || output_size == nullptr) {
+    if (input == nullptr || output_size == nullptr) {
+        return false;
+    }
+    if (output == nullptr && output_capacity > 0) {
         return false;
     }
 
