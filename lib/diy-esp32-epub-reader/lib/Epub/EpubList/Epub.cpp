@@ -116,7 +116,11 @@ bool Epub::parse_content_opf(ZipFile &zip, std::string &content_opf_file)
   m_title = title->GetText();
   SET_CHECKPOINT(42);
   auto cover = metadata->FirstChildElement("meta");
-  while (cover && cover->Attribute("name") && strcmp(cover->Attribute("name"), "cover") != 0)
+  // <meta> elements without a "name" attribute (e.g. dcterms:identifier) are common
+  // and must be skipped over rather than mistaken for "no more metas to check" -
+  // the previous condition stopped on the first nameless meta it hit, well before
+  // reaching the real <meta name="cover" .../> tag later in the list.
+  while (cover && (!cover->Attribute("name") || strcmp(cover->Attribute("name"), "cover") != 0))
   {
     cover = cover->NextSiblingElement("meta");
   }

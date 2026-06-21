@@ -68,6 +68,10 @@ RubbishHtmlParser::~RubbishHtmlParser()
   {
     delete block;
   }
+  for (auto page : pages)
+  {
+    delete page;
+  }
 }
 
 bool RubbishHtmlParser::VisitEnter(const tinyxml2::XMLElement &element, const tinyxml2::XMLAttribute *firstAttribute)
