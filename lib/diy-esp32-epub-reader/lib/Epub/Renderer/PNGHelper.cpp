@@ -10,6 +10,7 @@
 #include <PNGdec.h>
 #include "PNGHelper.h"
 #include "Renderer.h"
+#include "../EpubList/CrashCheckpoint.h"
 
 static const char *TAG = "PNG";
 
@@ -39,20 +40,35 @@ bool PNGHelper::get_size(const uint8_t *data, size_t data_size, int *width, int 
 }
 bool PNGHelper::render(const uint8_t *data, size_t data_size, Renderer *renderer, int x_pos, int y_pos, int width, int height)
 {
+  SET_CHECKPOINT(8100);
   this->renderer = renderer;
   this->y_pos = y_pos;
   this->x_pos = x_pos;
   int rc = png.openRAM(const_cast<uint8_t *>(data), data_size, png_draw_callback);
+  SET_CHECKPOINT(8101);
   if (rc == PNG_SUCCESS)
   {
     this->x_scale = std::min(1.0f, float(width) / float(png.getWidth()));
     this->y_scale = std::min(1.0f, float(height) / float(png.getHeight()));
     this->last_y = -1;
     this->tmp_rgb565_buffer = (uint16_t *)malloc(png.getWidth() * 2);
+    SET_CHECKPOINT(8102);
+    if (!this->tmp_rgb565_buffer)
+    {
+      // PNGdec's draw callback writes a full scanline into this buffer on
+      // every row - decoding with a null buffer here would crash on the
+      // first line. Bail out cleanly instead and let the caller fall back
+      // to a placeholder rectangle.
+      ESP_LOGE(TAG, "Failed to allocate %d byte scanline buffer", png.getWidth() * 2);
+      png.close();
+      return false;
+    }
 
     png.decode(this, PNG_FAST_PALETTE);
+    SET_CHECKPOINT(8103);
     png.close();
     free(this->tmp_rgb565_buffer);
+    SET_CHECKPOINT(8104);
     return true;
   }
   else

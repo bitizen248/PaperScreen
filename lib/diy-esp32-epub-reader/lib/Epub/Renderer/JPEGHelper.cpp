@@ -10,6 +10,7 @@
 #endif
 #include "JPEGHelper.h"
 #include "Renderer.h"
+#include "../EpubList/CrashCheckpoint.h"
 
 static const char *TAG = "JPG";
 
@@ -25,6 +26,7 @@ bool JPEGHelper::get_size(const uint8_t *data, size_t data_size, int *width, int
   }
   m_data = data;
   m_data_pos = 0;
+  m_data_size = data_size;
   // decode the jpeg and get its size
   JDEC dec;
   JRESULT res = jd_prepare(&dec, read_jpeg_data, pool, POOL_SIZE, this);
@@ -42,10 +44,12 @@ bool JPEGHelper::get_size(const uint8_t *data, size_t data_size, int *width, int
   free(pool);
   m_data = nullptr;
   m_data_pos = 0;
+  m_data_size = 0;
   return true;
 }
 bool JPEGHelper::render(const uint8_t *data, size_t data_size, Renderer *renderer, int x_pos, int y_pos, int width, int height)
 {
+  SET_CHECKPOINT(8200);
   this->renderer = renderer;
   this->y_pos = y_pos;
   this->x_pos = x_pos;
@@ -57,9 +61,12 @@ bool JPEGHelper::render(const uint8_t *data, size_t data_size, Renderer *rendere
   }
   m_data = data;
   m_data_pos = 0;
+  m_data_size = data_size;
+  SET_CHECKPOINT(8201);
   // decode the jpeg and get its size
   JDEC dec;
   JRESULT res = jd_prepare(&dec, read_jpeg_data, pool, POOL_SIZE, this);
+  SET_CHECKPOINT(8202);
   if (res == JDR_OK)
   {
     this->x_scale = std::min(1.0f, float(width) / float(dec.width));
@@ -78,7 +85,9 @@ bool JPEGHelper::render(const uint8_t *data, size_t data_size, Renderer *rendere
     y_scale /= 2;
 
     ESP_LOGI(TAG, "JPEG Decoded - size %d,%d, scale = %f, %f, %d", dec.width, dec.height, x_scale, y_scale, scale_factor);
+    SET_CHECKPOINT(8203);
     jd_decomp(&dec, draw_jpeg_function, scale_factor);
+    SET_CHECKPOINT(8204);
   }
   else
   {
@@ -87,6 +96,8 @@ bool JPEGHelper::render(const uint8_t *data, size_t data_size, Renderer *rendere
   free(pool);
   m_data = nullptr;
   m_data_pos = 0;
+  m_data_size = 0;
+  SET_CHECKPOINT(8205);
   return res == JDR_OK;
 }
 
@@ -102,12 +113,18 @@ size_t read_jpeg_data(
     ESP_LOGE(TAG, "No image data");
     return 0;
   }
-  if (buff)
+  // Corrupt/truncated jpeg data could otherwise make tjpgd ask for more
+  // bytes than the source buffer actually has, reading past its end.
+  size_t remaining = context->m_data_pos < context->m_data_size
+      ? context->m_data_size - context->m_data_pos
+      : 0;
+  size_t to_copy = std::min(ndata, remaining);
+  if (buff && to_copy > 0)
   {
-    memcpy(buff, context->m_data + context->m_data_pos, ndata);
+    memcpy(buff, context->m_data + context->m_data_pos, to_copy);
   }
-  context->m_data_pos += ndata;
-  return ndata;
+  context->m_data_pos += to_copy;
+  return to_copy;
 }
 
 static int last_y = 0;
