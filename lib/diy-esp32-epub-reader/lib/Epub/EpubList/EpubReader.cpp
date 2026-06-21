@@ -47,12 +47,27 @@ void EpubReader::parse_and_layout_current_section()
     // so it does not crashes when you want to go after last page (out of vector range)
     std::string item = epub->get_spine_item(state.current_section);
     std::string base_path = item.substr(0, item.find_last_of('/') + 1);
+    printf("[DEBUG] parse_and_layout: reading contents of %s\n", item.c_str());
+    fflush(stdout);
     char *html = reinterpret_cast<char *>(epub->get_item_contents(item));
+    printf("[DEBUG] parse_and_layout: got html=%p\n", (void *)html);
+    fflush(stdout);
     ESP_LOGD(TAG, "After read html: %d", esp_get_free_heap_size());
+    if (html == nullptr)
+    {
+      ESP_LOGE(TAG, "Failed to read section html for %s", item.c_str());
+      parser = new RubbishHtmlParser("", 0, base_path);
+      state.pages_in_current_section = parser->get_page_count();
+      return;
+    }
     parser = new RubbishHtmlParser(html, strlen(html), base_path);
     free(html);
+    printf("[DEBUG] parse_and_layout: parsed, starting layout\n");
+    fflush(stdout);
     ESP_LOGD(TAG, "After parse: %d", esp_get_free_heap_size());
     parser->layout(renderer, epub);
+    printf("[DEBUG] parse_and_layout: layout done\n");
+    fflush(stdout);
     ESP_LOGD(TAG, "After layout: %d", esp_get_free_heap_size());
     state.pages_in_current_section = parser->get_page_count();
   }

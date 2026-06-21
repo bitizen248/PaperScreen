@@ -30,9 +30,22 @@ public:
   }
   void layout(Renderer *renderer, Epub *epub, int max_width = -1)
   {
+    printf("[DEBUG] ImageBlock::layout fetching %s\n", m_src.c_str());
+    fflush(stdout);
     size_t image_data_size = 0;
     uint8_t *image_data = epub->get_item_contents(m_src, &image_data_size);
+    printf("[DEBUG] ImageBlock::layout fetched %s data=%p size=%zu\n", m_src.c_str(), image_data, image_data_size);
+    fflush(stdout);
+    if (image_data == nullptr)
+    {
+      width = 0;
+      height = 0;
+      x_pos = 0;
+      return;
+    }
     renderer->get_image_size(m_src, image_data, image_data_size, &width, &height);
+    printf("[DEBUG] ImageBlock::layout got_image_size %dx%d\n", width, height);
+    fflush(stdout);
     if (width > renderer->get_page_width() || height > renderer->get_page_height())
     {
       float scale = std::min(

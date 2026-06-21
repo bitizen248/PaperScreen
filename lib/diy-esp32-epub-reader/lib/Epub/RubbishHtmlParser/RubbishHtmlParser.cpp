@@ -194,9 +194,18 @@ void RubbishHtmlParser::layout(Renderer *renderer, Epub *epub)
   const int page_height = renderer->get_page_height();
   // first ask the blocks to work out where they should have
   // line breaks based on the page width
+  int block_index = 0;
   for (auto block : blocks)
   {
+    // DEBUG: bisecting a crash on real books - prints+flushes before each
+    // block's layout() so the last line seen on the monitor pinpoints the
+    // offending block even if the crash itself never prints a backtrace.
+    printf("[DEBUG] layout block %d/%zu type=%d\n", block_index, blocks.size(), (int)block->getType());
+    fflush(stdout);
     block->layout(renderer, epub);
+    printf("[DEBUG] layout block %d done\n", block_index);
+    fflush(stdout);
+    ++block_index;
     // feed the watchdog
     vTaskDelay(1);
   }
