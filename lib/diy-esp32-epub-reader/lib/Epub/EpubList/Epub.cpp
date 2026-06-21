@@ -21,8 +21,13 @@
 #include "tinyxml2.h"
 #include "../ZipFile/ZipFile.h"
 #include "Epub.h"
+#include "CrashCheckpoint.h"
 
 static const char *TAG = "EPUB";
+
+#ifndef UNIT_TEST
+RTC_NOINIT_ATTR uint32_t g_crash_checkpoint;
+#endif
 
 bool Epub::find_content_opf_file(ZipFile &zip, std::string &content_opf_file)
 {
@@ -77,6 +82,7 @@ bool Epub::find_content_opf_file(ZipFile &zip, std::string &content_opf_file)
 
 bool Epub::parse_content_opf(ZipFile &zip, std::string &content_opf_file)
 {
+  SET_CHECKPOINT(40);
   // read in the content.opf file and parse it
   char *contents = (char *)zip.read_file_to_memory(content_opf_file.c_str());
   // parse the contents
@@ -108,6 +114,7 @@ bool Epub::parse_content_opf(ZipFile &zip, std::string &content_opf_file)
     return false;
   }
   m_title = title->GetText();
+  SET_CHECKPOINT(42);
   auto cover = metadata->FirstChildElement("meta");
   while (cover && cover->Attribute("name") && strcmp(cover->Attribute("name"), "cover") != 0)
   {
@@ -128,14 +135,23 @@ bool Epub::parse_content_opf(ZipFile &zip, std::string &content_opf_file)
     ESP_LOGE(TAG, "Missing manifest");
     return false;
   }
+  SET_CHECKPOINT(43);
   // create a mapping from id to file name
   auto item = manifest->FirstChildElement("item");
   std::map<std::string, std::string> items;
 
   while (item)
   {
-    std::string item_id = item->Attribute("id");
-    std::string href = m_base_path + item->Attribute("href");
+    const char *id_attr = item->Attribute("id");
+    const char *href_attr = item->Attribute("href");
+    if (!id_attr || !href_attr)
+    {
+      ESP_LOGW(TAG, "Skipping malformed manifest item (missing id/href)");
+      item = item->NextSiblingElement("item");
+      continue;
+    }
+    std::string item_id = id_attr;
+    std::string href = m_base_path + href_attr;
     // grab the cover image
     if (cover_item && item_id == cover_item)
     {
@@ -149,6 +165,7 @@ bool Epub::parse_content_opf(ZipFile &zip, std::string &content_opf_file)
     items[item_id] = href;
     item = item->NextSiblingElement("item");
   }
+  SET_CHECKPOINT(44);
   // find the spine
   auto spine = package->FirstChildElement("spine");
   if (!spine)
@@ -156,22 +173,25 @@ bool Epub::parse_content_opf(ZipFile &zip, std::string &content_opf_file)
     ESP_LOGE(TAG, "Missing spine");
     return false;
   }
+  SET_CHECKPOINT(45);
   // read the spine
   auto itemref = spine->FirstChildElement("itemref");
   while (itemref)
   {
     auto id = itemref->Attribute("idref");
-    if (items.find(id) != items.end())
+    if (id && items.find(id) != items.end())
     {
       m_spine.push_back(std::make_pair(id, items[id]));
     }
     itemref = itemref->NextSiblingElement("itemref");
   }
+  SET_CHECKPOINT(46);
   return true;
 }
 
 bool Epub::parse_toc_ncx_file(ZipFile &zip)
 {
+  SET_CHECKPOINT(50);
   // the ncx file should have been specified in the content.opf file
   if (m_toc_ncx_item.empty())
   {
@@ -186,6 +206,7 @@ bool Epub::parse_toc_ncx_file(ZipFile &zip)
     ESP_LOGE(TAG, "Could not find %s", m_toc_ncx_item.c_str());
     return false;
   }
+  SET_CHECKPOINT(51);
   // Parse the Toc contents
   tinyxml2::XMLDocument doc;
   auto result = doc.Parse(ncx_data);
@@ -195,6 +216,7 @@ bool Epub::parse_toc_ncx_file(ZipFile &zip)
     ESP_LOGE(TAG, "Error parsing toc %s", doc.ErrorIDToName(result));
     return false;
   }
+  SET_CHECKPOINT(52);
   auto ncx = doc.FirstChildElement("ncx");
   if (!ncx)
   {
@@ -208,12 +230,16 @@ bool Epub::parse_toc_ncx_file(ZipFile &zip)
     ESP_LOGE(TAG, "Could not find navMap child in ncx");
     return false;
   }
+  SET_CHECKPOINT(53);
 
   auto navPoint = navMap->FirstChildElement("navPoint");
+  uint32_t nav_point_index = 0;
 
   // Fills toc_index map
   while (navPoint)
   {
+    SET_CHECKPOINT(54 + nav_point_index);
+    ++nav_point_index;
     // navPoint has also an id & playOrder element: navPoint->Attribute("id");
     // Real-world EPUBs sometimes have malformed/incomplete navPoint entries
     // (missing navLabel/text/content, or content missing its src attribute) -
@@ -254,12 +280,11 @@ Epub::Epub(const std::string &path) : m_path(path)
 // load in the meta data for the epub file
 bool Epub::load()
 {
-  printf("[DEBUG] Epub::load opening zip %s\n", m_path.c_str());
-  fflush(stdout);
+  SET_CHECKPOINT(30);
   ZipFile zip(m_path.c_str());
+  SET_CHECKPOINT(31);
   std::string content_opf_file;
-  printf("[DEBUG] Epub::load find_content_opf_file\n");
-  fflush(stdout);
+  SET_CHECKPOINT(32);
   if (!find_content_opf_file(zip, content_opf_file))
   {
     #ifndef UNIT_TEST
@@ -274,20 +299,17 @@ bool Epub::load()
   }
   // get the base path for the content
   m_base_path = content_opf_file.substr(0, content_opf_file.find_last_of('/') + 1);
-  printf("[DEBUG] Epub::load parse_content_opf %s\n", content_opf_file.c_str());
-  fflush(stdout);
+  SET_CHECKPOINT(33);
   if (!parse_content_opf(zip, content_opf_file))
   {
     return false;
   }
-  printf("[DEBUG] Epub::load parse_toc_ncx_file\n");
-  fflush(stdout);
+  SET_CHECKPOINT(34);
   if (!parse_toc_ncx_file(zip))
   {
     return false;
   }
-  printf("[DEBUG] Epub::load done\n");
-  fflush(stdout);
+  SET_CHECKPOINT(35);
   return true;
 }
 

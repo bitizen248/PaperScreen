@@ -5,6 +5,7 @@
 #include <cstring>
 #include <strings.h>
 
+#include "EpubList/CrashCheckpoint.h"
 #include "EpubList/Epub.h"
 #include "EpubList/EpubReader.h"
 
@@ -95,6 +96,7 @@ void ReaderApp::open_book(int index)
     if (index < 0 || index >= book_count_) {
         return;
     }
+    SET_CHECKPOINT(1);
     close_book();
 
     char absolute_path[200] = {};
@@ -104,8 +106,11 @@ void ReaderApp::open_book(int index)
     std::strncpy(book_state_.path, absolute_path, sizeof(book_state_.path) - 1);
     std::strncpy(book_state_.title, books_[index].title, sizeof(book_state_.title) - 1);
 
+    SET_CHECKPOINT(2);
     renderer_ = new PaperScreenEpubRenderer(&FiraSans_12, &FiraSans_12, &FiraSans_12, &FiraSans_12, nullptr, 0, 0);
+    SET_CHECKPOINT(3);
     epub_reader_ = new EpubReader(book_state_, renderer_);
+    SET_CHECKPOINT(4);
     epub_reader_->load();
 
     view_ = ReaderView::Reading;

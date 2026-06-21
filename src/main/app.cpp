@@ -6,6 +6,7 @@
 #include <esp_system.h>
 #include <new>
 
+#include "EpubList/CrashCheckpoint.h"
 #include "apps/trmnl/trmnl_settings_adapter.h"
 #include "display/drawing.h"
 #include "sdk/app_platform_context.h"
@@ -108,12 +109,20 @@ void App::setup()
         // reset, so a single println here is usually lost into the void
         // before any terminal reattaches. Keep repeating it so whichever
         // terminal finally reconnects still catches it.
+        //
+        // g_crash_checkpoint lives in RTC_NOINIT_ATTR memory, so unlike a
+        // printf made right before the fault, it survives the reset itself
+        // intact - no race with the USB-CDC TX FIFO draining in time. See
+        // EpubList/CrashCheckpoint.h for the ID -> call-site mapping.
+        const uint32_t checkpoint = g_crash_checkpoint;
         for (int i = 0; i < 20; ++i) {
-            Serial.printf("[app] !!! abnormal reset reason=%d (see esp_reset_reason_t) !!!\n",
-                          static_cast<int>(reset_reason));
+            Serial.printf("[app] !!! abnormal reset reason=%d last_checkpoint=%u (see "
+                          "esp_reset_reason_t / EpubList/CrashCheckpoint.h) !!!\n",
+                          static_cast<int>(reset_reason), static_cast<unsigned>(checkpoint));
             delay(250);
         }
     }
+    g_crash_checkpoint = 0;
 
     Serial.println();
     Serial.println("[app] setup begin");

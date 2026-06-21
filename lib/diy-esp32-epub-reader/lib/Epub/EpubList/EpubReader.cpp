@@ -12,11 +12,13 @@
 #include "Epub.h"
 #include "../RubbishHtmlParser/RubbishHtmlParser.h"
 #include "../Renderer/Renderer.h"
+#include "CrashCheckpoint.h"
 
 static const char *TAG = "EREADER";
 
 bool EpubReader::load()
 {
+  SET_CHECKPOINT(20);
   ESP_LOGD(TAG, "Before epub load: %d", esp_get_free_heap_size());
   // do we need to load the epub?
   if (!epub || epub->get_path() != state.path)
@@ -25,9 +27,12 @@ bool EpubReader::load()
     delete epub;
     delete parser;
     parser = nullptr;
+    SET_CHECKPOINT(21);
     epub = new Epub(state.path);
+    SET_CHECKPOINT(22);
     if (epub->load())
     {
+      SET_CHECKPOINT(23);
       ESP_LOGD(TAG, "After epub load: %d", esp_get_free_heap_size());
       return false;
     }
