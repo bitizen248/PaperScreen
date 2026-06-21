@@ -21,6 +21,7 @@
 #include "Page.h"
 #include "RubbishHtmlParser.h"
 #include "../EpubList/Epub.h"
+#include "../EpubList/CrashCheckpoint.h"
 
 static const char *TAG = "HTML";
 
@@ -197,18 +198,18 @@ void RubbishHtmlParser::layout(Renderer *renderer, Epub *epub)
   int block_index = 0;
   for (auto block : blocks)
   {
-    // DEBUG: bisecting a crash on real books - prints+flushes before each
-    // block's layout() so the last line seen on the monitor pinpoints the
-    // offending block even if the crash itself never prints a backtrace.
-    printf("[DEBUG] layout block %d/%zu type=%d\n", block_index, blocks.size(), (int)block->getType());
-    fflush(stdout);
+    // Checkpoints (not printf - see CrashCheckpoint.h) bisecting a crash on
+    // real books: 1000+N before block N's layout(), 2000+N once it returns,
+    // so the last value read back after a reset pinpoints the offending
+    // block even though the crash itself never prints a backtrace.
+    SET_CHECKPOINT(1000 + block_index);
     block->layout(renderer, epub);
-    printf("[DEBUG] layout block %d done\n", block_index);
-    fflush(stdout);
+    SET_CHECKPOINT(2000 + block_index);
     ++block_index;
     // feed the watchdog
     vTaskDelay(1);
   }
+  SET_CHECKPOINT(5000);
   // now we need to allocate the lines to pages
   // we'll run through each block and the lines within each block and allocate
   // them to pages. When we run out of space on a page we'll start a new page
@@ -247,6 +248,7 @@ void RubbishHtmlParser::layout(Renderer *renderer, Epub *epub)
       y += imageBlock->height;
     }
   }
+  SET_CHECKPOINT(5001);
 }
 
 void RubbishHtmlParser::render_page(int page_index, Renderer *renderer, Epub *epub)

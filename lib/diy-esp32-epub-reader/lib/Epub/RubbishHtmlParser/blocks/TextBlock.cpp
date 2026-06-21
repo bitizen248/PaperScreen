@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include "TextBlock.h"
+#include "../../EpubList/CrashCheckpoint.h"
 #ifndef UNIT_TEST
 #include <esp_log.h>
 #else
@@ -69,6 +70,7 @@ void TextBlock::add_span(const char *span, bool is_bold, bool is_italic)
 // given a renderer works out where to break the words into lines
 void TextBlock::layout(Renderer *renderer, Epub *epub, int max_width)
 {
+  SET_CHECKPOINT(9000);
   // measure each word
   for (int i = 0; i < words.size(); i++)
   {
@@ -76,6 +78,7 @@ void TextBlock::layout(Renderer *renderer, Epub *epub, int max_width)
     int width = renderer->get_text_width(words[i], word_styles[i] & BOLD_SPAN, word_styles[i] & ITALIC_SPAN);
     word_widths.push_back(width);
   }
+  SET_CHECKPOINT(9001);
 
   int page_width = max_width != -1 ? max_width : renderer->get_page_width();
   int space_width = renderer->get_space_width();
@@ -136,6 +139,7 @@ void TextBlock::layout(Renderer *renderer, Epub *epub, int max_width)
       }
     }
   }
+  SET_CHECKPOINT(9002);
   // We can now iterate through the answer to find the line break positions
   size_t i = 0;
   while (i < n)
@@ -165,6 +169,7 @@ void TextBlock::layout(Renderer *renderer, Epub *epub, int max_width)
       break;
     }
   }
+  SET_CHECKPOINT(9003);
   // With the page breaks calculated we can now position the words along the line
   int start_word = 0;
   for (int i = 0; i < line_breaks.size(); i++)
@@ -207,6 +212,7 @@ void TextBlock::layout(Renderer *renderer, Epub *epub, int max_width)
   word_widths.shrink_to_fit();
   word_xpos.shrink_to_fit();
   word_styles.shrink_to_fit();
+  SET_CHECKPOINT(9004);
 }
 void TextBlock::render(Renderer *renderer, int line_break_index, int x_pos, int y_pos)
 {
