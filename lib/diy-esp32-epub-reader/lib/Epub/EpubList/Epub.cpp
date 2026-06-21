@@ -215,10 +215,22 @@ bool Epub::parse_toc_ncx_file(ZipFile &zip)
   while (navPoint)
   {
     // navPoint has also an id & playOrder element: navPoint->Attribute("id");
-    auto navLabel = navPoint->FirstChildElement("navLabel")->FirstChildElement("text")->FirstChild();
-    std::string title = navLabel->Value();
+    // Real-world EPUBs sometimes have malformed/incomplete navPoint entries
+    // (missing navLabel/text/content, or content missing its src attribute) -
+    // skip those instead of crashing on a null deref.
+    auto navLabelElement = navPoint->FirstChildElement("navLabel");
+    auto textElement = navLabelElement ? navLabelElement->FirstChildElement("text") : nullptr;
+    auto navLabel = textElement ? textElement->FirstChild() : nullptr;
     auto content = navPoint->FirstChildElement("content");
-    std::string href = m_base_path + content->Attribute("src");
+    const char *src = content ? content->Attribute("src") : nullptr;
+    if (!navLabel || !navLabel->Value() || !src)
+    {
+      ESP_LOGW(TAG, "Skipping malformed navPoint in toc.ncx");
+      navPoint = navPoint->NextSiblingElement("navPoint");
+      continue;
+    }
+    std::string title = navLabel->Value();
+    std::string href = m_base_path + src;
     // split the href on the # to get the href and the anchor
     size_t pos = href.find('#');
     std::string anchor = "";
@@ -242,8 +254,12 @@ Epub::Epub(const std::string &path) : m_path(path)
 // load in the meta data for the epub file
 bool Epub::load()
 {
+  printf("[DEBUG] Epub::load opening zip %s\n", m_path.c_str());
+  fflush(stdout);
   ZipFile zip(m_path.c_str());
   std::string content_opf_file;
+  printf("[DEBUG] Epub::load find_content_opf_file\n");
+  fflush(stdout);
   if (!find_content_opf_file(zip, content_opf_file))
   {
     #ifndef UNIT_TEST
@@ -258,14 +274,20 @@ bool Epub::load()
   }
   // get the base path for the content
   m_base_path = content_opf_file.substr(0, content_opf_file.find_last_of('/') + 1);
+  printf("[DEBUG] Epub::load parse_content_opf %s\n", content_opf_file.c_str());
+  fflush(stdout);
   if (!parse_content_opf(zip, content_opf_file))
   {
     return false;
   }
+  printf("[DEBUG] Epub::load parse_toc_ncx_file\n");
+  fflush(stdout);
   if (!parse_toc_ncx_file(zip))
   {
     return false;
   }
+  printf("[DEBUG] Epub::load done\n");
+  fflush(stdout);
   return true;
 }
 
